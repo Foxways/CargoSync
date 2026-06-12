@@ -68,12 +68,24 @@ namespace OrganizationImportTool
 
             // Test Connection row: proves URL + Sender ID + Password against the live eAdaptor
             // BEFORE saving, so a typo never becomes a mysterious failed import later.
-            var testRow = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 50, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, BackColor = Color.Transparent, Padding = new Padding(0, 8, 0, 0) };
+            var testRow = new FlowLayoutPanel { Dock = DockStyle.Top, Height = LogicalToDeviceUnits(48), FlowDirection = FlowDirection.LeftToRight, WrapContents = false, BackColor = Color.Transparent, Padding = new Padding(0, 8, 0, 0) };
             var testBtn = GunaUi.Button("Test Connection", primary: false); testBtn.Size = new Size(150, 38); testBtn.Margin = new Padding(0, 0, 10, 0);
             testBtn.Click += async (s, e) => await TestConnectionAsync();
             _testSpinner = GunaUi.Spinner(24); _testSpinner.Margin = new Padding(0, 7, 8, 0);
-            _testLbl = new Label { AutoSize = true, Font = AppleTheme.Body, ForeColor = AppleTheme.TextSecondary, Padding = new Padding(0, 10, 0, 0) };
-            testRow.Controls.AddRange(new Control[] { testBtn, _testSpinner, _testLbl });
+            testRow.Controls.AddRange(new Control[] { testBtn, _testSpinner });
+
+            // The result gets its OWN full-width line (the message is longer than the space next
+            // to the button) with room to wrap onto a second line - never cut off.
+            _testLbl = new Label
+            {
+                Dock = DockStyle.Top,
+                Height = LogicalToDeviceUnits(44),
+                AutoSize = false,
+                Font = AppleTheme.Body,
+                ForeColor = AppleTheme.TextSecondary,
+                TextAlign = ContentAlignment.TopLeft,
+                Padding = new Padding(2, 2, 0, 0)
+            };
 
             var fg = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, ColumnCount = 2, BackColor = Color.Transparent };
             fg.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
@@ -126,6 +138,7 @@ namespace OrganizationImportTool
             Field("Company Code", companyCodeBox);
             Field("Log Folder", logCell, 54);
 
+            leftCard.Controls.Add(_testLbl);   // added first => sits BELOW the test row (Dock.Top stacks in reverse)
             leftCard.Controls.Add(testRow);
             leftCard.Controls.Add(buttons);
             leftCard.Controls.Add(fg);

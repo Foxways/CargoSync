@@ -75,12 +75,11 @@ namespace OrganizationImportTool.Sync
             AppleTheme.StyleGrid(_grid);
             _grid.CellFormatting += Grid_CellFormatting;
 
-            var footer = new Panel { Dock = DockStyle.Bottom, Height = 56, BackColor = AppleTheme.Canvas, Padding = new Padding(16, 10, 16, 10) };
-            var export = GunaUi.Button("Export CSV", primary: false); export.Size = new Size(130, 36); export.Click += Export_Click;
-            var close = GunaUi.Button("Close", primary: true); close.Size = new Size(100, 36); close.DialogResult = DialogResult.OK;
-            var right = new FlowLayoutPanel { Dock = DockStyle.Right, FlowDirection = FlowDirection.RightToLeft, AutoSize = true, WrapContents = false, BackColor = Color.Transparent };
-            right.Controls.Add(close); right.Controls.Add(export);
-            footer.Controls.Add(right);
+            // ButtonBar keeps the buttons clear of the Windows taskbar when maximized (the old
+            // flush 56px footer was cut off at the bottom of the screen).
+            var export = GunaUi.Button("Export CSV", primary: false); export.Size = new Size(130, 40); export.Click += Export_Click;
+            var close = GunaUi.Button("Close", primary: true); close.Size = new Size(110, 40); close.DialogResult = DialogResult.OK;
+            var footer = GunaUi.ButtonBar(new Control[] { close, export });
 
             Controls.Add(_grid);
             Controls.Add(footer);

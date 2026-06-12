@@ -99,21 +99,18 @@ namespace OrganizationImportTool.Ai
             tabs.AddTab("Providers & Fallback", BuildProvidersPanel());
             tabs.AddTab("Usage & Retention", BuildUsagePanel());
 
-            var footer = new Panel { Dock = DockStyle.Bottom, Height = 64, BackColor = AppleTheme.Canvas, Padding = new Padding(16, 12, 16, 12) };
-            var save = GunaUi.Button("Save", primary: true); save.Size = new Size(120, 38); save.Click += Save_Click;
-            var cancel = GunaUi.Button("Cancel", primary: false); cancel.Size = new Size(110, 38); cancel.DialogResult = DialogResult.Cancel;
-            var footRight = new FlowLayoutPanel { Dock = DockStyle.Right, FlowDirection = FlowDirection.RightToLeft, AutoSize = true, WrapContents = false, BackColor = Color.Transparent };
-            footRight.Controls.Add(save);
-            footRight.Controls.Add(cancel);
+            // ButtonBar keeps Save/Cancel clear of the Windows taskbar on this maximized window
+            // (the old flush 64px footer left them cut off at the bottom of the screen).
+            var save = GunaUi.Button("Save", primary: true); save.Size = new Size(120, 40); save.Click += Save_Click;
+            var cancel = GunaUi.Button("Cancel", primary: false); cancel.Size = new Size(110, 40); cancel.DialogResult = DialogResult.Cancel;
             _lblStatus = new Label
             {
-                Dock = DockStyle.Fill,
+                AutoSize = true,
                 Padding = new Padding(6, 10, 0, 0),
                 Font = AppleTheme.Body, ForeColor = AppleTheme.TextSecondary,
                 Text = "AI idle"
             };
-            footer.Controls.Add(_lblStatus);
-            footer.Controls.Add(footRight);
+            var footer = GunaUi.ButtonBar(new Control[] { save, cancel }, new Control[] { _lblStatus });
             CancelButton = cancel;
 
             Controls.Add(tabs);
