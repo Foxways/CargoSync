@@ -7,6 +7,7 @@ using OrganizationImportTool.Eadaptor;
 using OrganizationImportTool.Ingestion;
 using OrganizationImportTool.Logging;
 using OrganizationImportTool.Mapping;
+using OrganizationImportTool.Pipeline;
 using OrganizationImportTool.Profiling;
 using OrganizationImportTool.Security;
 using OrganizationImportTool.Sync;
@@ -601,9 +602,8 @@ namespace OrganizationImportTool
 
         private async void UploadBtn_ClickAsync(object sender, EventArgs e)
         {
-            // Reentrancy guard: an in-flight import pumps the message queue (Application.DoEvents),
-            // so without this a second click (e.g. after Stop re-enables the button) would start a
-            // concurrent import on top of the first — duplicate sends + a disposed-CTS crash.
+            // Reentrancy guard: a second click while an import is in flight (e.g. after Stop
+            // re-enables the button) must never start a concurrent run on top of the first.
             if (_running) return;
 
             // Dry run = same pipeline (read, map, derive, validate, build XML) but never transmit.
@@ -641,463 +641,54 @@ namespace OrganizationImportTool
             SetBusy(true);
             cancellationTokenSource = new CancellationTokenSource();
             var token = cancellationTokenSource.Token;
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             string clientName = clientBox.SelectedItem?.ToString() ?? clientId;
-            ImportLog importLog = null;
 
             try
             {
-                // 1) Read the file - ANY structure (xlsx/csv), no required headers.
-                logBox.AppendText($"Reading {Path.GetFileName(selectedFilePath)} ...\r\n");
-                var table = _readerFactory.Read(selectedFilePath);
-                if (table.RowCount == 0)
-                {
-                    logBox.AppendText("No data rows found in the file.\r\n");
-                    labelCounter.Text = "No data found !";
-                    return;
-                }
-                logBox.AppendText($"Loaded {table.RowCount} rows, {table.ColumnCount} columns.\r\n");
-
-                // Start a detailed per-run audit log in the client's configured log folder.
-                importLog = new ImportLog(logDir, clientName);
-                importLog.Header(clientName, details.Environment, details.URL, details.SenderID, selectedFilePath, table.RowCount, _currentUser.Username);
-                if (importLog.Ok) logBox.AppendText($"Detailed log: {importLog.FilePath}\r\n");
-
-                // 2) Auto-suggest header -> CargoWise field mapping (alias + fuzzy).
+                // The whole import flow lives in ImportPipeline (shared with the --pipeline CLI
+                // harness and the unit tests); this form only supplies the dialogs + progress UI.
                 var contract = GetContract();
-                var suggester = new MappingSuggester(contract);
-                var mapping = suggester.Suggest(table);
-
-                // 2a) Self-learning memory: overlay what this client confirmed on previous uploads.
-                // Highest trust, applied before AI so the AI only works on columns still unknown.
-                var templateStore = new TemplateStore();
-                var autoMemory = templateStore.GetAuto(clientId);
-                if (autoMemory != null)
-                {
-                    int learned = TemplateMapper.ApplyLearned(autoMemory, table, contract, mapping);
-                    if (learned > 0)
-                    {
-                        logBox.AppendText($"Recalled {learned} mapping(s) from this client's history — getting smarter every upload.\r\n");
-                        importLog?.Note($"Self-learning: applied {learned} remembered column mapping(s).");
-                    }
-                }
-
-                // 2b) Optional AI refinement of low-confidence / unmapped columns.
-                if (_aiRouter?.IsConfigured == true)
-                {
-                    try
-                    {
-                        labelCounter.Text = "Asking AI to refine mapping...";
-                        Application.DoEvents();
-                        var advisor = new AiMappingAdvisor(_aiRouter, _aiSettings.UseAiForLowConfidenceOnly);
-                        mapping = await advisor.RefineAsync(table, mapping, contract, token);
-                        logBox.AppendText($"AI refined {advisor.LastChangedCount} column mapping(s) using {_aiRouter.Current.ProviderName}.\r\n");
-                    }
-                    catch (Exception aiEx)
-                    {
-                        logBox.AppendText($"AI refinement skipped: {aiEx.Message}\r\n");
-                    }
-                }
-
-                // 3) MANDATORY user-validation gate - operator confirms/overrides every mapping.
-                using (var mapForm = new MappingForm(contract, table, mapping, clientId, templateStore, _aiRouter))
-                {
-                    if (mapForm.ShowDialog(this) != DialogResult.OK)
-                    {
-                        logBox.AppendText("Mapping cancelled by user. Nothing was sent.\r\n");
-                        labelCounter.Text = "Cancelled";
-                        return;
-                    }
-                    mapping = mapForm.ConfirmedResult;
-                }
-
-                // 3b) Self-learning: remember exactly what the operator confirmed for this client,
-                // folding it into the accumulating memory so the next file maps itself.
-                // Skipped on a dry run — a preview must not mutate the client's learned memory.
-                if (!dryRun)
-                {
-                    try
-                    {
-                        var updatedMemory = TemplateMapper.LearnFrom(mapping, autoMemory, clientId);
-                        templateStore.SaveAuto(updatedMemory, DateTime.UtcNow.ToString("o"));
-                        logBox.AppendText("Learned this mapping — future files from this client will auto-map.\r\n");
-                        importLog?.Note("Self-learning: saved confirmed mapping to client memory.");
-                    }
-                    catch (Exception learnEx)
-                    {
-                        logBox.AppendText($"Could not save learned mapping: {learnEx.Message}\r\n");
-                    }
-                }
-
-                var includedCols = mapping.Columns
-                    .Where(c => c.Include && !string.IsNullOrEmpty(c.TargetPath))
-                    .ToList();
-
-                // Build each row's mapped values once - shared by dedup and data-cleaning pre-passes.
-                var rowValues = table.Rows
-                    .Select(r => new RowValues { RowNumber = r.RowNumber, Values = BuildRowValues(r, includedCols, mapping) })
-                    .ToList();
-
-                // Pre-flight scans (cheap, deterministic) feed the profile dashboard's risk picture.
-                var dupGroups = new List<DuplicateGroup>();
-                try
-                {
-                    var keys = rowValues.Select(rv => new OrgKey
-                    {
-                        RowNumber = rv.RowNumber,
-                        Code = rv.Values.TryGetValue("orgHeader.code", out var c) ? c : string.Empty,
-                        Name = rv.Values.TryGetValue("orgHeader.fullName", out var n) ? n : string.Empty,
-                        Country = rv.Values.TryGetValue("orgAddressCollection[].countryCode.code", out var cc) ? cc : string.Empty,
-                        City = rv.Values.TryGetValue("orgAddressCollection[].city", out var ct) ? ct : string.Empty
-                    }).ToList();
-                    var scanner = new DuplicateScanner();
-                    dupGroups = scanner.Scan(keys);
-                    if (scanner.NameMatchingLimited)
-                        logBox.AppendText($"Dedup: large file ({rowValues.Count} rows) — used exact-code matching only (fuzzy name matching skipped for performance).\r\n");
-                }
-                catch (Exception dupEx) { logBox.AppendText($"Dedup scan skipped: {dupEx.Message}\r\n"); }
-                int duplicateRowCount = dupGroups.Sum(g => g.Extras.Count());
-
-                int cleaningPreviewCount = 0;
-                try { cleaningPreviewCount = (await new DataCleaner().AnalyzeAsync(rowValues, contract, null, false, token)).Count; }
-                catch (Exception cex) { Logging.AppLog.Warn("Cleaning preview count failed (profile dashboard will show 0)", cex); }
-
-                // CargoWise feedback sync: how many of these rows were already imported for this client.
-                int alreadySynced = 0;
-                try
-                {
-                    var synced = new FeedbackStore().SyncedCodes(clientId);
-                    if (synced.Count > 0)
-                        alreadySynced = rowValues.Count(rv => rv.Values.TryGetValue("orgHeader.code", out var cd)
-                            && !string.IsNullOrWhiteSpace(cd) && synced.Contains(cd));
-                    if (alreadySynced > 0)
-                        logBox.AppendText($"Sync: {alreadySynced} of {rowValues.Count} row(s) were already imported to CargoWise for this client (will update).\r\n");
-                }
-                catch (Exception sex) { Logging.AppLog.Warn("Sync-ledger pre-check failed (already-imported count unavailable)", sex); }
-
-                // 3b) Data-profiling risk dashboard — a pre-flight data-health overview.
-                try
-                {
-                    var report = new DataProfiler().Profile(rowValues, contract, duplicateRowCount, cleaningPreviewCount, alreadySynced);
-                    logBox.AppendText($"Profile: {report.RowCount} rows, risk {report.Level} (score {report.Score}/100).\r\n");
-                    importLog?.Note($"Profile: risk {report.Level} score {report.Score}; blocking {report.BlockingRows}, dupes {report.DuplicateRows}, warnings {report.WarningRows}.");
-                    using (var dash = new ProfileDashboardForm(report))
-                    {
-                        if (dash.ShowDialog(this) != DialogResult.OK)
-                        {
-                            logBox.AppendText("Import cancelled at data profile. Nothing was sent.\r\n");
-                            labelCounter.Text = "Cancelled";
-                            return;
-                        }
-                    }
-                }
-                catch (Exception profEx) { logBox.AppendText($"Profile skipped: {profEx.Message}\r\n"); }
-
-                // 3c) Fuzzy dedup review.
-                var skipRowNums = new HashSet<int>();
-                var dupReasonByRow = new Dictionary<int, string>();
-                if (dupGroups.Count > 0)
-                {
-                    int extras = dupGroups.Sum(g => g.Extras.Count());
-                    logBox.AppendText($"Dedup: found {dupGroups.Count} possible duplicate group(s) covering {extras} extra row(s).\r\n");
-                    importLog?.Note($"Dedup: {dupGroups.Count} possible duplicate group(s), {extras} extra row(s).");
-
-                    using (var dlg = new DuplicateReviewForm(dupGroups))
-                    {
-                        if (dlg.ShowDialog(this) != DialogResult.OK)
-                        {
-                            logBox.AppendText("Import cancelled at duplicate review. Nothing was sent.\r\n");
-                            labelCounter.Text = "Cancelled";
-                            return;
-                        }
-                        if (dlg.SkipDuplicates)
-                        {
-                            skipRowNums = dlg.RowsToSkip;
-                            foreach (var g in dupGroups)
-                                foreach (var extra in g.Extras)
-                                    dupReasonByRow[extra.RowNumber] = $"{g.Reason}; duplicate of row {g.Rows[0].RowNumber}";
-                            logBox.AppendText($"Dedup: skipping {skipRowNums.Count} duplicate row(s); keeping the first of each group.\r\n");
-                        }
-                        else
-                        {
-                            logBox.AppendText("Dedup: operator chose to import all rows (duplicates included).\r\n");
-                        }
-                    }
-                }
-
-                // 3d) AI data cleaning + Auto-Fix: normalise values (and let AI resolve the rest) before sending.
-                var cleanedByRow = new Dictionary<int, Dictionary<string, string>>();
-                try
-                {
-                    // Only clean rows that will actually be sent (skip dedup-dropped rows).
-                    var toClean = rowValues.Where(rv => !skipRowNums.Contains(rv.RowNumber)).ToList();
-                    if (toClean.Count > 0)
-                    {
-                        labelCounter.Text = "Cleaning data...";
-                        Application.DoEvents();
-                        var changes = await new DataCleaner()
-                            .AnalyzeAsync(toClean, contract, _aiRouter, _aiSettings.Enabled, token);
-                        if (changes.Count > 0)
-                        {
-                            int aiCount = changes.Count(c => c.Source == CleanSource.Ai);
-                            logBox.AppendText($"Data cleaning: {changes.Count} suggested fix(es){(aiCount > 0 ? $" ({aiCount} from AI)" : "")}.\r\n");
-                            importLog?.Note($"Data cleaning: {changes.Count} suggested fix(es), {aiCount} from AI.");
-
-                            using (var dlg = new DataCleaningForm(changes))
-                            {
-                                if (dlg.ShowDialog(this) != DialogResult.OK)
-                                {
-                                    logBox.AppendText("Import cancelled at data-cleaning review. Nothing was sent.\r\n");
-                                    labelCounter.Text = "Cancelled";
-                                    return;
-                                }
-                            }
-                            cleanedByRow = DataCleaner.AcceptedOverrides(changes);
-                            int applied = cleanedByRow.Sum(kv => kv.Value.Count);
-                            logBox.AppendText($"Data cleaning: applying {applied} accepted fix(es).\r\n");
-                        }
-                    }
-                }
-                catch (Exception cleanEx)
-                {
-                    logBox.AppendText($"Data cleaning skipped: {cleanEx.Message}\r\n");
-                }
-
-                // 3e) Enrichment APIs: fill EMPTY fields from external sources (Postal API + AI).
-                var enrichedByRow = new Dictionary<int, Dictionary<string, string>>();
-                try
-                {
-                    // Enrich on the cleaned view (the Postal API needs the cleaned 2-letter country code).
-                    var toEnrich = rowValues.Where(rv => !skipRowNums.Contains(rv.RowNumber))
-                        .Select(rv =>
-                        {
-                            var v = new Dictionary<string, string>(rv.Values, StringComparer.OrdinalIgnoreCase);
-                            if (cleanedByRow.TryGetValue(rv.RowNumber, out var fx)) foreach (var kv in fx) v[kv.Key] = kv.Value;
-                            return new RowValues { RowNumber = rv.RowNumber, Values = v };
-                        }).ToList();
-
-                    if (toEnrich.Count > 0)
-                    {
-                        labelCounter.Text = "Enriching data...";
-                        Application.DoEvents();
-                        var suggestions = await new EnrichmentService(_aiRouter, _aiSettings.Enabled).RunAsync(toEnrich, contract, token);
-                        if (suggestions.Count > 0)
-                        {
-                            int apiN = suggestions.Count(s => s.Source == "Postal API");
-                            int aiN = suggestions.Count(s => s.Source == "AI");
-                            logBox.AppendText($"Enrichment: {suggestions.Count} empty field(s) can be filled ({apiN} Postal API, {aiN} AI).\r\n");
-                            importLog?.Note($"Enrichment: {suggestions.Count} suggestion(s) ({apiN} API, {aiN} AI).");
-
-                            using (var dlg = new EnrichmentReviewForm(suggestions))
-                            {
-                                if (dlg.ShowDialog(this) != DialogResult.OK)
-                                {
-                                    logBox.AppendText("Import cancelled at enrichment review. Nothing was sent.\r\n");
-                                    labelCounter.Text = "Cancelled";
-                                    return;
-                                }
-                            }
-                            enrichedByRow = EnrichmentService.AcceptedOverrides(suggestions);
-                            logBox.AppendText($"Enrichment: filling {enrichedByRow.Sum(kv => kv.Value.Count)} accepted field(s).\r\n");
-                        }
-                    }
-                }
-                catch (Exception enrichEx)
-                {
-                    logBox.AppendText($"Enrichment skipped: {enrichEx.Message}\r\n");
-                }
-
-                logBox.AppendText(dryRun
-                    ? $"Confirmed {includedCols.Count} field mappings. Simulating {table.RowCount} organizations (no send)...\r\n"
-                    : $"Confirmed {includedCols.Count} field mappings. Sending {table.RowCount} organizations...\r\n");
-                importLog?.Mapping(mapping.Columns, mapping.Constants);
-
-                // 4) Build Native XML per row and submit to eAdaptor.
                 string ownerCode = !string.IsNullOrWhiteSpace(details.Companycode)
                     ? details.Companycode.Trim()
                     : contract.OwnerCodeDefault;
-                var builder = new OrganizationXmlBuilder(contract);
-                var validator = new OrgValidator(contract);
-                var client = new EadaptorClient(details.URL, details.SenderID, details.Password);
-                var feedbackStore = new FeedbackStore();   // CargoWise feedback ledger
-                var outcomes = new List<OrgSendOutcome>();
 
-                int counter = 0;
-                int throttleMs = 0; // adaptive inter-request delay; grows if CargoWise rate-limits
-                foreach (var row in table.Rows)
+                var pipeline = new ImportPipeline(
+                    contract, _readerFactory, new TemplateStore(), new FeedbackStore(),
+                    _aiRouter, _aiSettings,
+                    new EadaptorClient(details.URL, details.SenderID, details.Password),
+                    new WinFormsPipelineUi(this, logBox, labelCounter, progressBar, () => _paused, _aiRouter));
+
+                var request = new PipelineRequest
                 {
-                    // Pause support: hold here until the user resumes (or stops).
-                    while (_paused && !token.IsCancellationRequested)
-                    {
-                        labelCounter.Text = $"Paused at {counter}/{table.RowCount} — click Resume to continue";
-                        Application.DoEvents();
-                        await Task.Delay(200);
-                    }
-                    if (token.IsCancellationRequested)
-                    {
-                        logBox.AppendText($"Upload stopped by user at {counter}/{table.RowCount}.\r\n");
-                        labelCounter.Text = "Stopped";
-                        break;
-                    }
-                    counter++;
-                    labelCounter.Text = $"Processing organization ({counter}/{table.RowCount})";
-                    Application.DoEvents();
+                    FilePath = selectedFilePath,
+                    ClientId = clientId,
+                    ClientName = clientName,
+                    Username = _currentUser.Username,
+                    OwnerCode = ownerCode,
+                    DryRun = dryRun,
+                    LearnMapping = !dryRun,
+                    LogDir = logDir,
+                    Environment = details.Environment,
+                    Url = details.URL,
+                    SenderId = details.SenderID
+                };
 
-                    // Dedup: skip rows the operator chose to drop as duplicates of an earlier row.
-                    if (skipRowNums.Contains(row.RowNumber))
-                    {
-                        string dupReason = dupReasonByRow.TryGetValue(row.RowNumber, out var dr) ? dr : "duplicate of an earlier row";
-                        string dupCode = BuildRowValues(row, includedCols, mapping).TryGetValue("orgHeader.code", out var dcc) ? dcc : $"(row {row.RowNumber})";
-                        var dupOutcome = new OrgSendOutcome { RowNumber = row.RowNumber, SentCode = dupCode, SentXml = string.Empty, Response = EadaptorResponse.SkippedDuplicate(dupReason) };
-                        outcomes.Add(dupOutcome);
-                        importLog?.Row(counter, dupOutcome, new List<string> { "skipped: " + dupReason });
-                        logBox.AppendText($"  [{counter}] {dupCode}: SKIPPED (duplicate) - {dupReason}\r\n");
-                        progressBar.Value = Math.Min(progressBar.Maximum, (int)(((double)counter / table.RowCount) * 100));
-                        continue;
-                    }
+                var result = await pipeline.RunAsync(request, token);
 
-                    var values = BuildRowValues(row, includedCols, mapping);
-
-                    // Apply the operator-accepted data-cleaning fixes for this row.
-                    if (cleanedByRow.TryGetValue(row.RowNumber, out var fixes))
-                        foreach (var fix in fixes)
-                            values[fix.Key] = fix.Value;
-
-                    // Apply accepted enrichment (fills empty fields from external sources).
-                    if (enrichedByRow.TryGetValue(row.RowNumber, out var enrich))
-                        foreach (var en in enrich)
-                            values[en.Key] = en.Value;
-
-                    // Apply the operator's no-code IF-THEN rules.
-                    if (mapping.Rules.Count > 0)
-                    {
-                        var ruleHits = RuleEngine.Apply(mapping.Rules, row, values);
-                        if (ruleHits.Count > 0)
-                        {
-                            logBox.AppendText($"  [{counter}] rule(s) applied: {string.Join(" | ", ruleHits)}\r\n");
-                            importLog?.Note($"Row {row.RowNumber} rules: {string.Join(" | ", ruleHits)}");
-                        }
-                    }
-
-                    // Inbuilt brain: derive values the client omitted but CargoWise needs
-                    // (e.g. ClosestPort UN/LOCODE) - deterministically, with AI fallback when enabled.
-                    var derived = await SmartDefaults.FillMissingAsync(values, _aiRouter, _aiSettings.Enabled);
-
-                    string code = values.TryGetValue("orgHeader.code", out var cc) ? cc : $"(row {row.RowNumber})";
-                    if (derived.Count > 0)
-                        logBox.AppendText($"  [{counter}] {code}: auto-filled {string.Join("; ", derived)}\r\n");
-
-                    // Pre-send validation: never POST a definitely-broken row to CargoWise.
-                    var report = validator.Validate(values);
-                    var warnList = report.Warnings.Select(w => $"{w.Label}: {w.Message}").ToList();
-                    warnList.AddRange(derived.Select(d => "auto-filled " + d));
-                    if (report.HasErrors)
-                    {
-                        var vr = EadaptorResponse.ValidationFailed(report.ErrorText);
-                        if (dryRun) vr.Simulated = true; // preview label: "Would NOT send (validation)"
-                        // include the would-be XML so the operator can inspect even a blocked row in a dry run
-                        string failXml = dryRun ? SafeBuild(builder, values, ownerCode) : string.Empty;
-                        var failOutcome = new OrgSendOutcome { RowNumber = row.RowNumber, SentCode = code, SentXml = failXml, Response = vr };
-                        outcomes.Add(failOutcome);
-                        Logger.LogFailure($"{code} -> validation failed: {report.ErrorText}");
-                        importLog?.Row(counter, failOutcome, warnList);
-                        logBox.AppendText($"  [{counter}] {code}: {(dryRun ? "WOULD NOT SEND" : "NOT SENT")} - {report.ErrorText}\r\n");
-                        progressBar.Value = Math.Min(progressBar.Maximum, (int)(((double)counter / table.RowCount) * 100));
-                        continue;
-                    }
-                    foreach (var w in report.Warnings)
-                        Logger.LogSuccess($"{code} warning - {w.Label}: {w.Message}");
-
-                    string xml = builder.Build(values, ownerCode, enableCodeMapping: false);
-
-                    // Dry run: build + record the would-be request, but never transmit it.
-                    if (dryRun)
-                    {
-                        var simOutcome = new OrgSendOutcome { RowNumber = row.RowNumber, SentCode = code, SentXml = xml, Response = EadaptorResponse.SimulatedOk(code) };
-                        outcomes.Add(simOutcome);
-                        importLog?.Row(counter, simOutcome, warnList);
-                        logBox.AppendText($"  [{counter}] {code}: would send ✓ ({xml.Length} chars of Native XML built)\r\n");
-                        progressBar.Value = Math.Min(progressBar.Maximum, (int)(((double)counter / table.RowCount) * 100));
-                        continue;
-                    }
-
-                    var resp = await client.SendAsync(xml, token);
-                    var outcome = new OrgSendOutcome { RowNumber = row.RowNumber, SentCode = code, SentXml = xml, Response = resp };
-                    outcomes.Add(outcome);
-
-                    // CargoWise feedback sync: record what CW told us back (sent -> stored code, PK, status).
-                    try
-                    {
-                        feedbackStore.Record(new CwSyncEntry
-                        {
-                            ClientId = clientId, ClientName = clientName,
-                            SentCode = code, StoredCode = resp.LocalCode, EntityPk = resp.EntityPk,
-                            EntityName = resp.EntityName, Status = resp.Status, MessageNumber = resp.MessageNumber,
-                            Username = _currentUser.Username, SyncedUtc = DateTime.UtcNow
-                        });
-                    }
-                    catch (Exception fex) { Logging.AppLog.Warn($"Sync ledger record failed for '{code}' (resume detection may miss this row)", fex); }
-
-                    if (resp.IsSuccess)
-                        Logger.LogSuccess($"{code} -> {resp.Outcome} ({resp.LocalCode}) msg {resp.MessageNumber}");
-                    else
-                        Logger.LogFailure($"{code} -> {resp.Status}: {resp.Error}");
-
-                    importLog?.Row(counter, outcome, warnList);
-                    logBox.AppendText($"  [{counter}] {code}: {resp.Status} - {resp.Outcome}\r\n");
-                    progressBar.Value = Math.Min(progressBar.Maximum, (int)(((double)counter / table.RowCount) * 100));
-
-                    // Adaptive throttle: back off if CargoWise rate-limits / blocks, recover when clear.
-                    if (resp.HttpStatus == 429 || resp.HttpStatus == 503 || (!resp.TransportOk && !resp.NotSent))
-                        throttleMs = Math.Min(throttleMs == 0 ? 800 : throttleMs + 600, 5000);
-                    else
-                        throttleMs = Math.Max(0, throttleMs - 200);
-
-                    if (throttleMs > 0)
-                    {
-                        labelCounter.Text = $"Sent {counter}/{table.RowCount} — easing off {throttleMs} ms to avoid blocking…";
-                        Application.DoEvents();
-                        await Task.Delay(throttleMs);
-                    }
-                }
-
-                stopwatch.Stop();
-
-                if (dryRun)
+                // Activity audit: record who imported what, for which client (real uploads only).
+                if (!dryRun && !result.Cancelled && result.Outcomes.Count > 0)
                 {
-                    int wouldSend = outcomes.Count(o => o.Response.IsSimulatedOk);
-                    int blocked = outcomes.Count - wouldSend;
-                    importLog?.Summary(outcomes.Count, wouldSend, 0, blocked, 0, stopwatch.Elapsed);
-                    logBox.AppendText($"\r\nDry run complete. {wouldSend} would be sent, {blocked} blocked by validation, of {outcomes.Count}.\r\n");
-                    logBox.AppendText("Nothing was transmitted to CargoWise. Review the preview, then click Upload to import for real.\r\n");
-                    if (importLog?.Ok == true) logBox.AppendText($"Full details written to: {importLog.FilePath}\r\n");
-                    labelCounter.Text = $"Dry run: {wouldSend}/{outcomes.Count} would send";
-                }
-                else
-                {
-                    int ok = outcomes.Count(o => o.Response.IsSuccess);
-                    int warnCount = outcomes.Count(o => o.Response.IsWarning);
-                    int notSentCount = outcomes.Count(o => o.Response.NotSent);
-                    int rejected = outcomes.Count - ok - warnCount - notSentCount;
-                    int failed = outcomes.Count - ok;
-                    importLog?.Summary(outcomes.Count, ok, warnCount, notSentCount, rejected, stopwatch.Elapsed);
-
-                    // Activity audit: record who imported what, for which client.
                     try
                     {
                         new ActivityStore().Record(_currentUser.Id, _currentUser.Username, clientName,
-                            Path.GetFileName(selectedFilePath), outcomes.Count, ok, failed, notSentCount);
+                            Path.GetFileName(selectedFilePath), result.Outcomes.Count, result.Ok, result.Failed, result.NotSent);
                     }
                     catch (Exception aex) { Logging.AppLog.Warn("Activity audit record failed", aex); }
-
-                    logBox.AppendText($"\r\nDone. {ok} succeeded, {failed} failed of {outcomes.Count}.\r\n");
-                    if (importLog?.Ok == true) logBox.AppendText($"Full details written to: {importLog.FilePath}\r\n");
-                    labelCounter.Text = $"Complete: {ok}/{outcomes.Count} ok";
                 }
 
-                // 5) Professional response preview (titled "Dry Run" automatically when simulated).
-                if (outcomes.Count > 0)
-                    using (var preview = new ResponsePreviewForm(outcomes))
+                // Professional response preview (titled "Dry Run" automatically when simulated).
+                if (result.Outcomes.Count > 0)
+                    using (var preview = new ResponsePreviewForm(result.Outcomes))
                         preview.ShowDialog(this);
             }
             catch (OperationCanceledException)
@@ -1113,37 +704,11 @@ namespace OrganizationImportTool
             }
             finally
             {
-                importLog?.Dispose();
                 SetBusy(false);
                 cancellationTokenSource?.Dispose();
                 cancellationTokenSource = null;
-                _running = false;   // release the reentrancy guard only after the loop has truly exited
+                _running = false;   // release the reentrancy guard only after the run has truly exited
             }
-        }
-
-        /// <summary>Map one source row to CargoWise target-path values (column maps + constants), pre-derivation.</summary>
-        private static Dictionary<string, string> BuildRowValues(SourceRow row, List<ColumnMapping> includedCols, MappingResult mapping)
-        {
-            var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var col in includedCols)
-            {
-                string v = row[col.SourceHeader];
-                if (string.IsNullOrWhiteSpace(v)) continue;
-                // apply any client value-map (code lookups / conditionals) before transform
-                values[col.TargetPath!] = mapping.ApplyValueMap(col.TargetPath!, v.Trim());
-            }
-            // constants / defaults apply to every row
-            foreach (var kv in mapping.Constants)
-                if (!string.IsNullOrWhiteSpace(kv.Value))
-                    values[kv.Key] = kv.Value;
-            return values;
-        }
-
-        /// <summary>Build Native XML without throwing — used to preview a validation-blocked row in a dry run.</summary>
-        private static string SafeBuild(OrganizationXmlBuilder builder, Dictionary<string, string> values, string ownerCode)
-        {
-            try { return builder.Build(values, ownerCode, enableCodeMapping: false); }
-            catch { return string.Empty; }
         }
     }
 }

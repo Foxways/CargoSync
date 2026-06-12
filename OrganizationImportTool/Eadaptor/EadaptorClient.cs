@@ -12,7 +12,7 @@ namespace OrganizationImportTool.Eadaptor
     /// raw Native document with HTTP Basic auth and Content-Type application/xml; CargoWise
     /// returns a &lt;UniversalResponse&gt;. No SOAP envelope is required.
     /// </summary>
-    public class EadaptorClient
+    public class EadaptorClient : IEadaptorClient
     {
         private static readonly HttpClient Http = new HttpClient { Timeout = TimeSpan.FromSeconds(120) };
 

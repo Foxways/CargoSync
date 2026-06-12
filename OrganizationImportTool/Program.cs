@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Data.SQLite;
 using System.IO;
@@ -403,9 +403,9 @@ namespace OrganizationImportTool
         }
 
         /// <summary>
-        /// Run the FULL new pre-send pipeline headlessly (auto-accepting the review gates) and submit
-        /// to eAdaptor: map → profile → dedup → clean(+AI) → derive → validate → send.
-        /// Usage: --pipeline &lt;file&gt; [url] [user] [pass]
+        /// Run the FULL pre-send pipeline headlessly via the SAME ImportPipeline the app uses,
+        /// auto-accepting every review gate, and submit to eAdaptor.
+        /// No URL = build-only (dry run). Usage: --pipeline &lt;file&gt; [url] [user] [pass]
         /// </summary>
         public static async Task<int> Pipeline(string[] args)
         {
@@ -417,129 +417,40 @@ namespace OrganizationImportTool
                 string pass = args.Length > 4 ? args[4] : "";
 
                 var contract = FieldContract.Load();
-                var table = new Ingestion.SourceReaderFactory().Read(file);
-                Console.WriteLine($"=== FULL PIPELINE: {Path.GetFileName(file)} ({table.RowCount} rows, {table.ColumnCount} cols) ===\n");
+                Console.WriteLine($"=== FULL PIPELINE (shared ImportPipeline): {Path.GetFileName(file)} ===\n");
 
                 var aiSettings = Ai.AiSettings.Load();
                 Ai.AiRouter router = null;
-                bool aiEnabled = aiSettings.Enabled && aiSettings.FallbackChain.Any();
-                if (aiEnabled)
+                if (aiSettings.Enabled && aiSettings.FallbackChain.Any())
                 {
                     var first = aiSettings.FallbackChain.First();
                     router = new Ai.AiRouter(aiSettings, new Ai.TokenUsageStore());
                     Console.WriteLine($"AI provider: {first.Name} ({first.Model})\n");
                 }
 
-                // ---- STAGE 1: intelligent mapping (+ AI refine) ----
-                Console.WriteLine("STAGE 1 — Intelligent mapping");
-                var mapping = new MappingSuggester(contract).Suggest(table);
-                if (router != null)
+                bool dryRun = string.IsNullOrEmpty(url); // no URL = build-only preview, nothing transmitted
+                var pipeline = new Pipeline.ImportPipeline(
+                    contract, new Ingestion.SourceReaderFactory(), new Mapping.TemplateStore(),
+                    new Sync.FeedbackStore(), router, aiSettings,
+                    new EadaptorClient(url, user, pass), new Pipeline.HeadlessPipelineUi());
+
+                var result = await pipeline.RunAsync(new Pipeline.PipelineRequest
                 {
-                    var advisor = new Mapping.AiMappingAdvisor(router, aiSettings.UseAiForLowConfidenceOnly);
-                    mapping = await advisor.RefineAsync(table, mapping, contract);
-                    Console.WriteLine($"  AI refined {advisor.LastChangedCount} low-confidence column(s).");
-                }
-                var includedCols = mapping.Columns.Where(c => c.Include && !string.IsNullOrEmpty(c.TargetPath)).ToList();
-                foreach (var c in includedCols)
-                    Console.WriteLine($"  {c.SourceHeader,-16} -> {c.TargetPath,-42} [{c.Confidence}/{c.Source}]{(c.Approved ? "" : "  (needs approval)")}");
-                int needAppr = includedCols.Count(c => !c.Approved);
-                Console.WriteLine($"  [headless: auto-approving {needAppr} AI/low-confidence mapping(s)]\n");
+                    FilePath = file,
+                    ClientId = "PIPELINE_TEST",
+                    ClientName = "Pipeline",
+                    Username = "pipeline",
+                    OwnerCode = contract.OwnerCodeDefault,
+                    DryRun = dryRun,
+                    LearnMapping = false,   // the harness must not mutate a client's learned memory
+                    LogDir = null
+                }, System.Threading.CancellationToken.None);
 
-                Dictionary<string, string> BuildValues(Ingestion.SourceRow row)
-                {
-                    var v = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-                    foreach (var col in includedCols)
-                    {
-                        string s = row[col.SourceHeader];
-                        if (!string.IsNullOrWhiteSpace(s)) v[col.TargetPath!] = mapping.ApplyValueMap(col.TargetPath!, s.Trim());
-                    }
-                    foreach (var kv in mapping.Constants)
-                        if (!string.IsNullOrWhiteSpace(kv.Value)) v[kv.Key] = kv.Value;
-                    return v;
-                }
-                var rowValues = table.Rows
-                    .Select(r => new Transform.RowValues { RowNumber = r.RowNumber, Values = BuildValues(r) }).ToList();
-
-                // dedup scan (also feeds the profile)
-                var keys = rowValues.Select(rv => new Dedup.OrgKey
-                {
-                    RowNumber = rv.RowNumber,
-                    Code = rv.Values.TryGetValue("orgHeader.code", out var c) ? c : "",
-                    Name = rv.Values.TryGetValue("orgHeader.fullName", out var n) ? n : "",
-                    Country = rv.Values.TryGetValue("orgAddressCollection[].countryCode.code", out var cc) ? cc : "",
-                    City = rv.Values.TryGetValue("orgAddressCollection[].city", out var ct) ? ct : ""
-                }).ToList();
-                var dupGroups = new Dedup.DuplicateScanner().Scan(keys);
-                var skip = new HashSet<int>();
-                foreach (var g in dupGroups) foreach (var ex in g.Extras) skip.Add(ex.RowNumber);
-                int cleaningPreview = (await new Transform.DataCleaner().AnalyzeAsync(rowValues, contract, null, false)).Count;
-
-                // CargoWise feedback sync: ledger + how many rows were already imported before.
-                const string clientId = "PIPELINE_TEST";
-                var feedbackStore = new Sync.FeedbackStore();
-                var syncedCodes = feedbackStore.SyncedCodes(clientId);
-                int alreadySynced = syncedCodes.Count == 0 ? 0 :
-                    rowValues.Count(rv => rv.Values.TryGetValue("orgHeader.code", out var cd) && !string.IsNullOrWhiteSpace(cd) && syncedCodes.Contains(cd));
-
-                // ---- STAGE 2: profile & risk ----
-                Console.WriteLine("STAGE 2 — Data profile & risk");
-                var report = new Profiling.DataProfiler().Profile(rowValues, contract, dupGroups.Sum(g => g.Extras.Count()), cleaningPreview, alreadySynced);
-                Console.WriteLine($"  Risk: {report.Level} (score {report.Score}/100)  |  blocking {report.BlockingRows}, duplicates {report.DuplicateRows}, warnings {report.WarningRows}");
-                foreach (var f in report.Factors) Console.WriteLine("    • " + f);
-                Console.WriteLine();
-
-                // ---- STAGE 3: dedup (auto-skip extras) ----
-                Console.WriteLine("STAGE 3 — Fuzzy dedup");
-                if (dupGroups.Count > 0)
-                {
-                    foreach (var g in dupGroups)
-                        Console.WriteLine($"  rows [{g.RowList}] ({g.Confidence:P0}) {g.Reason}  ->  keep row {g.Rows[0].RowNumber}");
-                    Console.WriteLine($"  [headless: auto-skipping {skip.Count} duplicate row(s)]");
-                }
-                else Console.WriteLine("  no duplicates found");
-                Console.WriteLine();
-
-                // ---- STAGE 4: AI data cleaning (auto-accept) ----
-                Console.WriteLine("STAGE 4 — AI data cleaning + Auto-Fix");
-                var toClean = rowValues.Where(rv => !skip.Contains(rv.RowNumber)).ToList();
-                var changes = await new Transform.DataCleaner().AnalyzeAsync(toClean, contract, router, aiEnabled);
-                foreach (var ch in changes)
-                    Console.WriteLine($"  row{ch.RowNumber} {ch.Path}: \"{ch.Original}\" -> \"{ch.Cleaned}\"  [{ch.Reason}/{ch.Source}]");
-                var overrides = Transform.DataCleaner.AcceptedOverrides(changes);
-                Console.WriteLine($"  [headless: auto-accepting {changes.Count} fix(es)]\n");
-
-                // ---- STAGE 5: derive, validate, send ----
-                Console.WriteLine("STAGE 5 — Derive (brain), validate, send");
-                var builder = new OrganizationXmlBuilder(contract);
-                var validator = new Validation.OrgValidator(contract);
-                var client = new EadaptorClient(url, user, pass);
-                int sent = 0, blocked = 0, skipped = 0, n = 0;
-                foreach (var row in table.Rows)
-                {
-                    n++;
-                    if (skip.Contains(row.RowNumber)) { skipped++; Console.WriteLine($"  [{n}] row {row.RowNumber}: SKIPPED (duplicate)"); continue; }
-                    var values = BuildValues(row);
-                    if (overrides.TryGetValue(row.RowNumber, out var fx)) foreach (var kv in fx) values[kv.Key] = kv.Value;
-                    var derived = await Transform.SmartDefaults.FillMissingAsync(values, router, aiEnabled);
-                    string code = values.TryGetValue("orgHeader.code", out var cc2) ? cc2 : $"(row {row.RowNumber})";
-                    if (derived.Count > 0) Console.WriteLine($"       brain derived: {string.Join("; ", derived)}");
-                    var rep = validator.Validate(values);
-                    if (rep.HasErrors) { blocked++; Console.WriteLine($"  [{n}] {code}: BLOCKED (validation) - {rep.ErrorText}"); continue; }
-                    string xml = builder.Build(values, contract.OwnerCodeDefault, false);
-                    if (string.IsNullOrEmpty(url)) { Console.WriteLine($"  [{n}] {code}: build-only {xml.Length} chars (no URL)"); continue; }
-                    var resp = await client.SendAsync(xml);
-                    if (resp.IsSuccess) sent++;
-                    feedbackStore.Record(new Sync.CwSyncEntry
-                    {
-                        ClientId = clientId, ClientName = "Pipeline", SentCode = code, StoredCode = resp.LocalCode,
-                        EntityPk = resp.EntityPk, EntityName = resp.EntityName, Status = resp.Status,
-                        MessageNumber = resp.MessageNumber, Username = "pipeline", SyncedUtc = DateTime.UtcNow
-                    });
-                    Console.WriteLine($"  [{n}] {code}: {resp.Status} - {resp.Outcome}  (stored {resp.LocalCode}, msg {resp.MessageNumber})");
-                    if (!resp.IsSuccess) Console.WriteLine($"        error: {resp.Error}");
-                }
-
-                Console.WriteLine($"\n=== PIPELINE COMPLETE: {sent} sent, {blocked} blocked (validation), {skipped} skipped (duplicate), of {table.RowCount} rows ===");
+                int skipped = result.Outcomes.Count(o => o.Response.IsDuplicate);
+                int blocked = result.NotSent - skipped;
+                Console.WriteLine(dryRun
+                    ? $"\n=== PIPELINE COMPLETE (build-only): {result.WouldSend} would send, {blocked} blocked (validation), {skipped} skipped (duplicate), of {result.Outcomes.Count} rows ==="
+                    : $"\n=== PIPELINE COMPLETE: {result.Ok} sent, {blocked} blocked (validation), {skipped} skipped (duplicate), of {result.Outcomes.Count} rows ===");
                 return 0;
             }
             catch (Exception ex) { Console.WriteLine("PIPELINE EXCEPTION: " + ex); return 5; }
