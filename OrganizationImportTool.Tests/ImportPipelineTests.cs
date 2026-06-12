@@ -52,6 +52,15 @@ namespace OrganizationImportTool.Tests
             return Task.FromResult(true);
         }
 
+        public ResumeChoice ResumeAnswer = ResumeChoice.SkipAlreadyImported;
+        public string? LastCrashDescription;
+
+        public Task<ResumeChoice> ConfirmResumeAsync(int alreadyImported, int totalRows, string? crashedRunDescription)
+        {
+            LastCrashDescription = crashedRunDescription;
+            return Task.FromResult(CancelAtStage == "resume" ? ResumeChoice.Cancel : ResumeAnswer);
+        }
+
         public void Log(string line) => LogLines.Add(line);
         public void Status(string text) { }
         public void Progress(int current, int total) { }
@@ -234,6 +243,87 @@ namespace OrganizationImportTool.Tests
                 withBrokenAi.Outcomes.Select(o => (o.RowNumber, o.SentCode, o.Response.Outcome)));
             Assert.Empty(noAiClient.SentXml);
             Assert.Empty(aiClient.SentXml);
+        }
+
+        [Fact]
+        public async Task Second_upload_offers_resume_and_skips_already_imported_rows()
+        {
+            WriteCsv("ACME001,Acme Imports,1 Test St,Sydney,AU",
+                     "GLOBE001,Globe Trading,2 Dock Rd,Melbourne,AU");
+            var (p1, _, c1, feedback, _) = Build();
+            var r1 = await p1.RunAsync(Request(_csv.Path), CancellationToken.None);
+            Assert.Equal(2, r1.Ok);
+
+            // Same file again: the resume gate fires; default fake answer = skip.
+            var (p2, ui2, c2, _, _) = Build();
+            var r2 = await p2.RunAsync(Request(_csv.Path), CancellationToken.None);
+
+            Assert.Equal(2, r2.Outcomes.Count);
+            Assert.All(r2.Outcomes, o => Assert.True(o.Response.IsAlreadyImported));
+            Assert.Empty(c2.SentXml); // nothing re-sent
+        }
+
+        [Fact]
+        public async Task Resend_all_choice_sends_everything_again()
+        {
+            WriteCsv("ACME001,Acme Imports,1 Test St,Sydney,AU");
+            var (p1, _, _, _, _) = Build();
+            await p1.RunAsync(Request(_csv.Path), CancellationToken.None);
+
+            var (p2, ui2, c2, _, _) = Build();
+            ui2.ResumeAnswer = ResumeChoice.ResendAll;
+            var r2 = await p2.RunAsync(Request(_csv.Path), CancellationToken.None);
+
+            Assert.Equal(1, r2.Ok);
+            Assert.Single(c2.SentXml);
+        }
+
+        [Fact]
+        public async Task Crashed_run_is_detected_on_the_next_upload_of_the_same_file()
+        {
+            WriteCsv("ACME001,Acme Imports,1 Test St,Sydney,AU",
+                     "GLOBE001,Globe Trading,2 Dock Rd,Melbourne,AU");
+
+            // Run 1 "crashes": cancel after the loop starts so the run journal never completes.
+            var (p1, ui1, _, feedback, _) = Build();
+            using (var cts = new CancellationTokenSource())
+            {
+                var firstSent = false;
+                ui1.LogLines.Clear();
+                // cancel as soon as the first row's outcome is logged -> journal left open
+                var run1 = p1.RunAsync(Request(_csv.Path), cts.Token);
+                // crude but deterministic: wait for completion of row 1 then cancel can't be timed
+                // reliably here, so instead simulate the crash by completing run1 fully and
+                // re-opening a journal entry manually:
+                await run1;
+            }
+            string hash;
+            using (var sha = System.Security.Cryptography.SHA256.Create())
+            using (var fs = File.OpenRead(_csv.Path))
+                hash = Convert.ToHexString(sha.ComputeHash(fs));
+            feedback.BeginRun("TESTCLIENT", Path.GetFileName(_csv.Path), hash, 2, "tester"); // never completed
+
+            var (p2, ui2, _, _, _) = Build();
+            await p2.RunAsync(Request(_csv.Path), CancellationToken.None);
+
+            Assert.NotNull(ui2.LastCrashDescription);
+            Assert.Contains("stopped part-way", ui2.LastCrashDescription);
+        }
+
+        [Fact]
+        public async Task Dry_run_never_triggers_the_resume_gate()
+        {
+            WriteCsv("ACME001,Acme Imports,1 Test St,Sydney,AU");
+            var (p1, _, _, _, _) = Build();
+            await p1.RunAsync(Request(_csv.Path), CancellationToken.None);
+
+            var (p2, ui2, c2, _, _) = Build();
+            ui2.ResumeAnswer = ResumeChoice.Cancel; // would cancel IF the gate fired
+            var r2 = await p2.RunAsync(Request(_csv.Path, dryRun: true), CancellationToken.None);
+
+            Assert.False(r2.Cancelled);
+            Assert.Single(r2.Outcomes);
+            Assert.True(r2.Outcomes[0].Response.IsSimulatedOk);
         }
 
         [Fact]

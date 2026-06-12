@@ -85,6 +85,25 @@ namespace OrganizationImportTool.Pipeline
             return Task.FromResult(dlg.ShowDialog(_owner) == DialogResult.OK);
         }
 
+        public Task<ResumeChoice> ConfirmResumeAsync(int alreadyImported, int totalRows, string? crashedRunDescription)
+        {
+            string message =
+                (crashedRunDescription != null ? crashedRunDescription + "\n\n" : "") +
+                $"{alreadyImported} of {totalRows} row(s) in this file were already imported to CargoWise successfully.\n\n" +
+                "YES — Skip them (recommended): only the remaining rows are sent.\n" +
+                "NO — Re-send everything: existing organizations are updated by code\n" +
+                "         (if CargoWise auto-generates codes this can create duplicates).\n" +
+                "CANCEL — Stop, nothing is sent.";
+            var answer = MessageBox.Show(_owner, message, "Some rows were already imported",
+                MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question, MessageBoxDefaultButton.Button1);
+            return Task.FromResult(answer switch
+            {
+                DialogResult.Yes => ResumeChoice.SkipAlreadyImported,
+                DialogResult.No => ResumeChoice.ResendAll,
+                _ => ResumeChoice.Cancel
+            });
+        }
+
         public void Log(string line) => _logBox.AppendText(line + "\r\n");
 
         public void Status(string text) => _status.Text = text;

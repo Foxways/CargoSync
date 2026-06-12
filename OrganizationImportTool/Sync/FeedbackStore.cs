@@ -20,6 +20,9 @@ namespace OrganizationImportTool.Sync
         public string Username { get; set; } = string.Empty;
         public DateTime SyncedUtc { get; set; }
 
+        /// <summary>The import run this record belongs to (links to the ImportRuns journal).</summary>
+        public string RunId { get; set; } = string.Empty;
+
         public bool IsSuccess => string.Equals(Status, "PRS", StringComparison.OrdinalIgnoreCase);
         public string Outcome => IsSuccess ? "Created/Updated" :
             string.Equals(Status, "WRN", StringComparison.OrdinalIgnoreCase) ? "Warning" : "Rejected";
@@ -62,10 +65,110 @@ CREATE TABLE IF NOT EXISTS CwSync (
     Username TEXT,
     SyncedUtc TEXT
 );
-CREATE INDEX IF NOT EXISTS IX_CwSync_Client_Sent ON CwSync (ClientId, SentCode);";
+CREATE INDEX IF NOT EXISTS IX_CwSync_Client_Sent ON CwSync (ClientId, SentCode);
+CREATE TABLE IF NOT EXISTS ImportRuns (
+    RunId TEXT PRIMARY KEY,
+    ClientId TEXT,
+    FileName TEXT,
+    FileHash TEXT,
+    TotalRows INTEGER,
+    StartedUtc TEXT,
+    CompletedUtc TEXT NULL,
+    Username TEXT
+);";
                 cmd.ExecuteNonQuery();
+
+                // PRAGMA-guarded column add for ledgers created before the run journal existed.
+                bool hasRunId = false;
+                using (var info = new SQLiteCommand("PRAGMA table_info(CwSync)", conn))
+                using (var r = info.ExecuteReader())
+                    while (r.Read()) if (string.Equals(r["name"]?.ToString(), "RunId", StringComparison.OrdinalIgnoreCase)) hasRunId = true;
+                if (!hasRunId)
+                {
+                    using var alter = new SQLiteCommand("ALTER TABLE CwSync ADD COLUMN RunId TEXT", conn);
+                    alter.ExecuteNonQuery();
+                }
             }
             catch (Exception ex) { Logging.AppLog.Warn("Sync ledger schema creation failed", ex); /* must never break an import */ }
+        }
+
+        // ---------------- per-run journal (crash/resume detection) ----------------
+
+        /// <summary>Open a run journal entry; returns the run id. CompletedUtc stays NULL until CompleteRun.</summary>
+        public string BeginRun(string clientId, string fileName, string fileHash, int totalRows, string username)
+        {
+            string runId = Guid.NewGuid().ToString("N");
+            try
+            {
+                using var conn = new SQLiteConnection(_connStr);
+                conn.Open();
+                using var cmd = new SQLiteCommand(
+                    "INSERT INTO ImportRuns (RunId, ClientId, FileName, FileHash, TotalRows, StartedUtc, Username) " +
+                    "VALUES (@r,@c,@f,@h,@t,@s,@u)", conn);
+                cmd.Parameters.AddWithValue("@r", runId);
+                cmd.Parameters.AddWithValue("@c", clientId ?? "");
+                cmd.Parameters.AddWithValue("@f", fileName ?? "");
+                cmd.Parameters.AddWithValue("@h", fileHash ?? "");
+                cmd.Parameters.AddWithValue("@t", totalRows);
+                cmd.Parameters.AddWithValue("@s", DateTime.UtcNow.ToString("o"));
+                cmd.Parameters.AddWithValue("@u", username ?? "");
+                cmd.ExecuteNonQuery();
+            }
+            catch (Exception ex) { Logging.AppLog.Warn("Run journal BeginRun failed", ex); }
+            return runId;
+        }
+
+        /// <summary>Mark a run as cleanly finished (crash detection = runs that never reach this).</summary>
+        public void CompleteRun(string runId)
+        {
+            try
+            {
+                using var conn = new SQLiteConnection(_connStr);
+                conn.Open();
+                using var cmd = new SQLiteCommand("UPDATE ImportRuns SET CompletedUtc=@w WHERE RunId=@r", conn);
+                cmd.Parameters.AddWithValue("@w", DateTime.UtcNow.ToString("o"));
+                cmd.Parameters.AddWithValue("@r", runId ?? "");
+                cmd.ExecuteNonQuery();
+            }
+            catch (Exception ex) { Logging.AppLog.Warn("Run journal CompleteRun failed", ex); }
+        }
+
+        public sealed class ImportRunInfo
+        {
+            public string RunId { get; set; } = string.Empty;
+            public string FileName { get; set; } = string.Empty;
+            public int TotalRows { get; set; }
+            public DateTime StartedUtc { get; set; }
+            public int RowsRecorded { get; set; }
+        }
+
+        /// <summary>Newest run of this exact file for this client that never completed (crash/kill), if any.</summary>
+        public ImportRunInfo? FindIncompleteRun(string clientId, string fileHash)
+        {
+            try
+            {
+                using var conn = new SQLiteConnection(_connStr);
+                conn.Open();
+                using var cmd = new SQLiteCommand(
+                    "SELECT RunId, FileName, TotalRows, StartedUtc, " +
+                    "  (SELECT COUNT(*) FROM CwSync WHERE CwSync.RunId = ImportRuns.RunId) AS Recorded " +
+                    "FROM ImportRuns WHERE ClientId=@c AND FileHash=@h AND CompletedUtc IS NULL " +
+                    "ORDER BY StartedUtc DESC LIMIT 1", conn);
+                cmd.Parameters.AddWithValue("@c", clientId ?? "");
+                cmd.Parameters.AddWithValue("@h", fileHash ?? "");
+                using var r = cmd.ExecuteReader();
+                if (!r.Read()) return null;
+                DateTime.TryParse(r["StartedUtc"]?.ToString(), out var started);
+                return new ImportRunInfo
+                {
+                    RunId = r["RunId"]?.ToString() ?? "",
+                    FileName = r["FileName"]?.ToString() ?? "",
+                    TotalRows = Convert.ToInt32(r["TotalRows"] ?? 0),
+                    StartedUtc = started,
+                    RowsRecorded = Convert.ToInt32(r["Recorded"] ?? 0)
+                };
+            }
+            catch (Exception ex) { Logging.AppLog.Warn("Run journal FindIncompleteRun failed", ex); return null; }
         }
 
         public void Record(CwSyncEntry e)
@@ -75,8 +178,8 @@ CREATE INDEX IF NOT EXISTS IX_CwSync_Client_Sent ON CwSync (ClientId, SentCode);
                 using var conn = new SQLiteConnection(_connStr);
                 conn.Open();
                 using var cmd = new SQLiteCommand(
-                    "INSERT INTO CwSync (ClientId, ClientName, SentCode, StoredCode, EntityPk, EntityName, Status, MessageNumber, Username, SyncedUtc) " +
-                    "VALUES (@ci,@cn,@sc,@stc,@pk,@en,@st,@mn,@un,@w)", conn);
+                    "INSERT INTO CwSync (ClientId, ClientName, SentCode, StoredCode, EntityPk, EntityName, Status, MessageNumber, Username, SyncedUtc, RunId) " +
+                    "VALUES (@ci,@cn,@sc,@stc,@pk,@en,@st,@mn,@un,@w,@run)", conn);
                 cmd.Parameters.AddWithValue("@ci", e.ClientId ?? "");
                 cmd.Parameters.AddWithValue("@cn", e.ClientName ?? "");
                 cmd.Parameters.AddWithValue("@sc", e.SentCode ?? "");
@@ -87,6 +190,7 @@ CREATE INDEX IF NOT EXISTS IX_CwSync_Client_Sent ON CwSync (ClientId, SentCode);
                 cmd.Parameters.AddWithValue("@mn", e.MessageNumber ?? "");
                 cmd.Parameters.AddWithValue("@un", e.Username ?? "");
                 cmd.Parameters.AddWithValue("@w", (e.SyncedUtc == default ? DateTime.UtcNow : e.SyncedUtc).ToString("o"));
+                cmd.Parameters.AddWithValue("@run", e.RunId ?? "");
                 cmd.ExecuteNonQuery();
             }
             catch (Exception ex) { Logging.AppLog.Warn($"Sync ledger write failed for '{e.SentCode}'", ex); }

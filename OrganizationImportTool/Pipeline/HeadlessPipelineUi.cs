@@ -67,6 +67,13 @@ namespace OrganizationImportTool.Pipeline
             return Task.FromResult(true);
         }
 
+        public Task<ResumeChoice> ConfirmResumeAsync(int alreadyImported, int totalRows, string? crashedRunDescription)
+        {
+            if (crashedRunDescription != null) Console.WriteLine("  " + crashedRunDescription);
+            Console.WriteLine($"  [headless: {alreadyImported}/{totalRows} row(s) already imported - re-sending all (MERGE updates)]");
+            return Task.FromResult(ResumeChoice.ResendAll); // matches the harness's historical behavior
+        }
+
         public void Log(string line) => Console.WriteLine(line);
 
         public void Status(string text) { /* the per-line log already narrates progress */ }

@@ -45,6 +45,7 @@ namespace OrganizationImportTool.Eadaptor
 
         /// <summary>One-line outcome for grids/logs.</summary>
         public string Outcome =>
+            IsAlreadyImported ? "Skipped (already imported)" :
             IsDuplicate ? (Simulated ? "Would skip (duplicate)" : "Skipped (duplicate)") :
             Simulated ? (NotSent ? "Would NOT send (validation)" : "Would send ✓ (preview)") :
             NotSent ? "Not sent (validation)" :
@@ -58,6 +59,13 @@ namespace OrganizationImportTool.Eadaptor
         /// <summary>A row skipped because it duplicates an earlier row in the same file.</summary>
         public static EadaptorResponse SkippedDuplicate(string reason) =>
             new EadaptorResponse { NotSent = true, TransportOk = false, Status = "DUP", Error = reason, ProcessingLog = reason };
+
+        /// <summary>True when the row was skipped because it was already imported on a previous run.</summary>
+        public bool IsAlreadyImported => Status.Equals("SKP", StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>A row skipped because the sync ledger shows it was already imported successfully.</summary>
+        public static EadaptorResponse SkippedAlreadyImported(string reason) =>
+            new EadaptorResponse { NotSent = true, TransportOk = false, Status = "SKP", Error = reason, ProcessingLog = reason };
 
         /// <summary>A dry-run row that validated cleanly and would be sent for real.</summary>
         public static EadaptorResponse SimulatedOk(string code) =>

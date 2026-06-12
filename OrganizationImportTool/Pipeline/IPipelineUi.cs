@@ -10,6 +10,16 @@ using OrganizationImportTool.Transform;
 
 namespace OrganizationImportTool.Pipeline
 {
+    /// <summary>What to do with rows the sync ledger says were already imported successfully.</summary>
+    public enum ResumeChoice
+    {
+        /// <summary>Skip the already-imported rows (recommended; avoids duplicate orgs under code-generation).</summary>
+        SkipAlreadyImported,
+        /// <summary>Send everything again (CargoWise MERGEs by code; regenerated codes may duplicate).</summary>
+        ResendAll,
+        Cancel
+    }
+
     /// <summary>The operator's decision at the duplicate-review gate.</summary>
     public sealed class DuplicateDecision
     {
@@ -40,6 +50,12 @@ namespace OrganizationImportTool.Pipeline
 
         /// <summary>Enrichment review - implementations mutate each suggestion's Accept flag. False = cancelled.</summary>
         Task<bool> ReviewEnrichmentAsync(List<EnrichmentSuggestion> suggestions);
+
+        /// <summary>
+        /// Some rows were already imported successfully on a previous run (and/or a previous run
+        /// of this exact file crashed mid-way). Skip them, re-send everything, or cancel?
+        /// </summary>
+        Task<ResumeChoice> ConfirmResumeAsync(int alreadyImported, int totalRows, string? crashedRunDescription);
 
         /// <summary>One line of operator-visible progress narration.</summary>
         void Log(string line);

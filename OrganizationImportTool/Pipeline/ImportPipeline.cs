@@ -237,18 +237,59 @@ namespace OrganizationImportTool.Pipeline
                 try { cleaningPreviewCount = (await new DataCleaner().AnalyzeAsync(rowValues, _contract, null, false, token)).Count; }
                 catch (Exception cex) { AppLog.Warn("Cleaning preview count failed (profile dashboard will show 0)", cex); }
 
-                // CargoWise feedback sync: how many of these rows were already imported for this client.
+                // CargoWise feedback sync: which of these rows were already imported for this client.
                 int alreadySynced = 0;
+                var alreadyImportedRows = new HashSet<int>();
                 try
                 {
                     var synced = _feedback.SyncedCodes(req.ClientId);
                     if (synced.Count > 0)
-                        alreadySynced = rowValues.Count(rv => rv.Values.TryGetValue("orgHeader.code", out var cd)
-                            && !string.IsNullOrWhiteSpace(cd) && synced.Contains(cd));
+                        foreach (var rv in rowValues)
+                            if (rv.Values.TryGetValue("orgHeader.code", out var cd)
+                                && !string.IsNullOrWhiteSpace(cd) && synced.Contains(cd))
+                                alreadyImportedRows.Add(rv.RowNumber);
+                    alreadySynced = alreadyImportedRows.Count;
                     if (alreadySynced > 0)
-                        _ui.Log($"Sync: {alreadySynced} of {rowValues.Count} row(s) were already imported to CargoWise for this client (will update).");
+                        _ui.Log($"Sync: {alreadySynced} of {rowValues.Count} row(s) were already imported to CargoWise for this client.");
                 }
                 catch (Exception sex) { AppLog.Warn("Sync-ledger pre-check failed (already-imported count unavailable)", sex); }
+
+                // Resume gate: offer to skip rows that already went through (this also covers a
+                // previous run of this exact file that crashed mid-way - detected via the run
+                // journal). Skipping protects against duplicate orgs when CargoWise regenerates codes.
+                string fileHash = HashFile(req.FilePath);
+                var skipAlreadyImported = new HashSet<int>();
+                if (!req.DryRun && alreadySynced > 0)
+                {
+                    string? crashDesc = null;
+                    var incomplete = fileHash.Length > 0 ? _feedback.FindIncompleteRun(req.ClientId, fileHash) : null;
+                    if (incomplete != null)
+                    {
+                        crashDesc = $"A previous import of this exact file stopped part-way " +
+                                    $"({incomplete.RowsRecorded} of {incomplete.TotalRows} rows recorded, started {incomplete.StartedUtc:g} UTC).";
+                        _ui.Log("Detected an earlier import of this file that did not finish — you can resume by skipping the rows that already went through.");
+                    }
+
+                    var choice = await _ui.ConfirmResumeAsync(alreadySynced, rowValues.Count, crashDesc);
+                    if (incomplete != null) _feedback.CompleteRun(incomplete.RunId); // decided: stop re-prompting
+                    if (choice == ResumeChoice.Cancel)
+                    {
+                        _ui.Log("Import cancelled at the already-imported check. Nothing was sent.");
+                        _ui.Status("Cancelled");
+                        result.Cancelled = true;
+                        result.CancelledAtStage = "resume";
+                        return result;
+                    }
+                    if (choice == ResumeChoice.SkipAlreadyImported)
+                    {
+                        skipAlreadyImported = alreadyImportedRows;
+                        _ui.Log($"Resume: skipping {skipAlreadyImported.Count} row(s) already imported successfully.");
+                    }
+                    else
+                    {
+                        _ui.Log("Re-sending all rows (existing organizations will be updated by code).");
+                    }
+                }
 
                 // 3c) Data-profiling risk dashboard — a pre-flight data-health overview.
                 try
@@ -386,6 +427,10 @@ namespace OrganizationImportTool.Pipeline
                 var builder = new OrganizationXmlBuilder(_contract);
                 var validator = new OrgValidator(_contract);
 
+                // Run journal: lets the NEXT upload of this file detect a crash mid-run and resume.
+                string runId = req.DryRun ? string.Empty : _feedback.BeginRun(
+                    req.ClientId, Path.GetFileName(req.FilePath), fileHash, table.RowCount, req.Username);
+
                 int counter = 0;
                 int throttleMs = 0; // adaptive inter-request delay; grows if CargoWise rate-limits
                 foreach (var row in table.Rows)
@@ -400,6 +445,22 @@ namespace OrganizationImportTool.Pipeline
                     }
                     counter++;
                     _ui.Status($"Processing organization ({counter}/{table.RowCount})");
+
+                    // Resume: skip rows already imported successfully on a previous run.
+                    if (skipAlreadyImported.Contains(row.RowNumber))
+                    {
+                        string skipCode = BuildRowValues(row, includedCols, mapping).TryGetValue("orgHeader.code", out var scc) ? scc : $"(row {row.RowNumber})";
+                        var skipOutcome = new OrgSendOutcome
+                        {
+                            RowNumber = row.RowNumber, SentCode = skipCode, SentXml = string.Empty,
+                            Response = EadaptorResponse.SkippedAlreadyImported("already imported successfully on a previous run")
+                        };
+                        result.Outcomes.Add(skipOutcome);
+                        importLog?.Row(counter, skipOutcome, new List<string> { "skipped: already imported" });
+                        _ui.Log($"  [{counter}] {skipCode}: SKIPPED (already imported)");
+                        _ui.Progress(counter, table.RowCount);
+                        continue;
+                    }
 
                     // Dedup: skip rows the operator chose to drop as duplicates of an earlier row.
                     if (skipRowNums.Contains(row.RowNumber))
@@ -491,7 +552,7 @@ namespace OrganizationImportTool.Pipeline
                             ClientId = req.ClientId, ClientName = req.ClientName,
                             SentCode = code, StoredCode = resp.LocalCode, EntityPk = resp.EntityPk,
                             EntityName = resp.EntityName, Status = resp.Status, MessageNumber = resp.MessageNumber,
-                            Username = req.Username, SyncedUtc = DateTime.UtcNow
+                            Username = req.Username, SyncedUtc = DateTime.UtcNow, RunId = runId
                         });
                     }
                     catch (Exception fex) { AppLog.Warn($"Sync ledger record failed for '{code}' (resume detection may miss this row)", fex); }
@@ -519,6 +580,11 @@ namespace OrganizationImportTool.Pipeline
                 }
 
                 stopwatch.Stop();
+
+                // Close the run journal ONLY when the loop genuinely finished. A user Stop or a
+                // crash leaves it open, which is exactly what triggers the resume offer next time.
+                if (!req.DryRun && !token.IsCancellationRequested && runId.Length > 0)
+                    _feedback.CompleteRun(runId);
 
                 if (req.DryRun)
                 {
@@ -577,6 +643,22 @@ namespace OrganizationImportTool.Pipeline
         {
             try { return builder.Build(values, ownerCode, enableCodeMapping: false); }
             catch { return string.Empty; }
+        }
+
+        /// <summary>SHA-256 of the source file - identifies "the same file" across runs for resume.</summary>
+        private static string HashFile(string path)
+        {
+            try
+            {
+                using var sha = System.Security.Cryptography.SHA256.Create();
+                using var fs = File.OpenRead(path);
+                return Convert.ToHexString(sha.ComputeHash(fs));
+            }
+            catch (Exception ex)
+            {
+                AppLog.Warn("File hash failed (crash-resume detection disabled for this run)", ex);
+                return string.Empty;
+            }
         }
     }
 }
