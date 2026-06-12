@@ -1,0 +1,7 @@
+Account Code,Company Name,Street,Town,Province,Zip,Country,Closest Port,Consignee
+ZZACME001,Acme Imports Pty Ltd,12 Harbour Road,Sydney,NSW,2000,Australia,AUSYD,Yes
+ZZGLOBE002,Globe Traders LLC,88 Market Street,Melbourne,VIC,3000,Australia,AUMEL,Y
+ZZACME001,Acme Imports (Sydney office),12 Harbour Rd,Sydney,NSW,2000,Australia,AUSYD,Yes
+ZZACME777,ACME IMPORTS,1 Dock Lane,Sydney,NSW,2000,Australia,AUSYD,No
+ZZGLOBE777,Globe Traders,500 Main St,Houston,TX,77001,United States,USHOU,No
+ZZPACIFIC9,Pacific Freight Co,9 Ocean Drive,Perth,WA,6000,Australia,AUPER,No

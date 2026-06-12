@@ -1,0 +1,262 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  COMPLETE raw CargoWise Organization export (client-supplied, DELFFRATI), verbatim.
+  This is the full tag dictionary - every element CW emitted, including the large optional
+  blocks (OrgMiscServ, OrgSupplierBuyerLink_BuyerCollection, all OrgCompanyData fields,
+  IsUserFlag1..32). Use it as the authoritative source of element names/structure when the
+  mapping engine needs a field that the trimmed sample omits. For IMPORT you normally send
+  only the fields you have a value for; CW fills the rest with defaults.
+  See CargoWise_Organization_RealExport_Sample.xml for the trimmed, import-ready version.
+-->
+<Native xmlns="http://www.cargowise.com/Schemas/Native/2011/11" version="2.0">
+  <Header>
+    <OwnerCode>EMOTRASXB</OwnerCode>
+    <EnableCodeMapping>true</EnableCodeMapping>
+  </Header>
+  <Body>
+    <Organization version="2.0">
+      <OrgHeader Action="MERGE">
+        <PK>00ff25db-35d0-40e1-af84-b5703265cd55</PK>
+        <Code>DELFFRATI</Code>
+        <IsActive>true</IsActive>
+        <FullName>DELFINGEN FR-ANTEUIL</FullName>
+        <IsConsignee>true</IsConsignee>
+        <IsConsignor>true</IsConsignor>
+        <IsTransportClient>false</IsTransportClient>
+        <IsWarehouseClient>false</IsWarehouseClient>
+        <IsForwarder>false</IsForwarder>
+        <IsShippingProvider>false</IsShippingProvider>
+        <IsAirWholesaler>false</IsAirWholesaler>
+        <IsSeaWholesaler>false</IsSeaWholesaler>
+        <IsRailProvider>false</IsRailProvider>
+        <IsLineHaulProvider>false</IsLineHaulProvider>
+        <IsMiscFreightServices>false</IsMiscFreightServices>
+        <IsAirCTO>false</IsAirCTO>
+        <IsAirLine>false</IsAirLine>
+        <IsBroker>false</IsBroker>
+        <IsContainerYard>false</IsContainerYard>
+        <IsLocalTransport>false</IsLocalTransport>
+        <IsPackDepot>false</IsPackDepot>
+        <IsSeaCTO>false</IsSeaCTO>
+        <IsShippingLine>false</IsShippingLine>
+        <IsUnpackDepot>false</IsUnpackDepot>
+        <IsRailHead>false</IsRailHead>
+        <IsRoadFreightDepot>false</IsRoadFreightDepot>
+        <IsShippingConsortium>false</IsShippingConsortium>
+        <IsFumigationContractor>false</IsFumigationContractor>
+        <IsGlobalAccount>false</IsGlobalAccount>
+        <IsNationalAccount>false</IsNationalAccount>
+        <IsSalesLead>false</IsSalesLead>
+        <IsCompetitor>false</IsCompetitor>
+        <IsTempAccount>false</IsTempAccount>
+        <IsPersonalEffectsAccount>false</IsPersonalEffectsAccount>
+        <IsDistributionCentre>false</IsDistributionCentre>
+        <IsUserFlag1>false</IsUserFlag1>
+        <IsUserFlag2>false</IsUserFlag2>
+        <IsUserFlag3>false</IsUserFlag3>
+        <IsUserFlag4>false</IsUserFlag4>
+        <IsUserFlag5>false</IsUserFlag5>
+        <IsUserFlag6>false</IsUserFlag6>
+        <IsUserFlag7>false</IsUserFlag7>
+        <IsUserFlag8>false</IsUserFlag8>
+        <IsUserFlag9>false</IsUserFlag9>
+        <IsUserFlag10>false</IsUserFlag10>
+        <IsUserFlag11>false</IsUserFlag11>
+        <IsUserFlag12>false</IsUserFlag12>
+        <IsUserFlag13>false</IsUserFlag13>
+        <IsUserFlag14>false</IsUserFlag14>
+        <IsUserFlag15>false</IsUserFlag15>
+        <IsUserFlag16>false</IsUserFlag16>
+        <IsUserFlag17>false</IsUserFlag17>
+        <IsUserFlag18>false</IsUserFlag18>
+        <IsUserFlag19>false</IsUserFlag19>
+        <IsUserFlag20>false</IsUserFlag20>
+        <IsUserFlag21>false</IsUserFlag21>
+        <IsUserFlag22>false</IsUserFlag22>
+        <IsUserFlag23>false</IsUserFlag23>
+        <IsUserFlag24>false</IsUserFlag24>
+        <Language>EN</Language>
+        <Category>BUS</Category>
+        <IsControllingAgent>false</IsControllingAgent>
+        <IsControllingCustomer>false</IsControllingCustomer>
+        <ScreeningStatus>CLR</ScreeningStatus>
+        <IsUserFlag25>false</IsUserFlag25>
+        <IsUserFlag26>false</IsUserFlag26>
+        <IsUserFlag27>false</IsUserFlag27>
+        <IsUserFlag28>false</IsUserFlag28>
+        <IsUserFlag29>false</IsUserFlag29>
+        <IsUserFlag30>false</IsUserFlag30>
+        <IsUserFlag31>false</IsUserFlag31>
+        <IsUserFlag32>false</IsUserFlag32>
+        <IsFerryWaterTerminal>false</IsFerryWaterTerminal>
+        <IsContainerLeasingCompany>false</IsContainerLeasingCompany>
+        <OverrideAdditionalAddressInformation>false</OverrideAdditionalAddressInformation>
+        <OrgMiscServ Action="MERGE">
+          <PK>eb939590-5237-4604-ac6d-c668aed06fae</PK>
+          <IMEftCustomsFromImport>false</IMEftCustomsFromImport>
+          <IMEftQuarantineFromImport>false</IMEftQuarantineFromImport>
+          <IMEftHoldUntilPayAuthorised>false</IMEftHoldUntilPayAuthorised>
+          <IMEstDaysDeliveryAir>0</IMEstDaysDeliveryAir>
+          <IMEstDaysDeliveryFCL>0</IMEstDaysDeliveryFCL>
+          <IMEstDaysDeliveryLCL>0</IMEstDaysDeliveryLCL>
+          <IMMaxEFTAmount>0.0000</IMMaxEFTAmount>
+          <IMMinEFTAmount>0.0000</IMMinEFTAmount>
+          <IMEFTBankAccount></IMEFTBankAccount>
+          <IMEFTBankBSB></IMEFTBankBSB>
+          <IMIsGSTDeferred>false</IMIsGSTDeferred>
+          <IMMergeCustomsInvoiceLinesBy>DEF</IMMergeCustomsInvoiceLinesBy>
+          <IMOriginalSeaBills>3</IMOriginalSeaBills>
+          <IMCopySeaBills>3</IMCopySeaBills>
+          <IMSendImportDocsTo>IMP</IMSendImportDocsTo>
+          <IMSendSeaImportDocsTo>IMP</IMSendSeaImportDocsTo>
+          <IMImporterCategory>STD</IMImporterCategory>
+          <IMAirDepotFreeDays>1</IMAirDepotFreeDays>
+          <IMSeaDepotFreeDays>3</IMSeaDepotFreeDays>
+          <IMDefaultINCOTerm>FOB</IMDefaultINCOTerm>
+          <IMAllowOrders>true</IMAllowOrders>
+          <EXExporterCategory>STD</EXExporterCategory>
+          <EXDefaultIncoTerm>FOB</EXDefaultIncoTerm>
+          <EXMergeCustomsInvoiceLinesBy>NON</EXMergeCustomsInvoiceLinesBy>
+          <FWAgentCategory>STD</FWAgentCategory>
+          <FWBillCollectFeesOnSingleInvoice>true</FWBillCollectFeesOnSingleInvoice>
+          <CMCompetitorActivity>FRT</CMCompetitorActivity>
+          <CMUseTradeLaneFigures>true</CMUseTradeLaneFigures>
+          <IsAutoPackAllowed>true</IsAutoPackAllowed>
+          <WhsOrderFulfillmentRule>NON</WhsOrderFulfillmentRule>
+          <WhsDefaultWarehousePickMode>ASP</WhsDefaultWarehousePickMode>
+          <WhsTransportPayer>DEF</WhsTransportPayer>
+          <ConsigneeAuthorityToLeave>DEF</ConsigneeAuthorityToLeave>
+          <ConsignorAuthorityToLeave>DEF</ConsignorAuthorityToLeave>
+          <EXDefaultCntryOfOrigin TableName="RefCountry">
+            <Code>FR</Code>
+          </EXDefaultCntryOfOrigin>
+          <FWDefCurrency TableName="RefCurrency">
+            <Code>EUR</Code>
+          </FWDefCurrency>
+          <!-- (many additional OrgMiscServ defaults omitted here for brevity; CW supplies them) -->
+        </OrgMiscServ>
+        <OrgContactCollection>
+          <OrgContact Action="MERGE">
+            <PK>484ebeb1-852f-4813-b944-d81e4a84a453</PK>
+            <IsActive>true</IsActive>
+            <ContactName>DUMMY CONTACT TO SUPPRESS DOCS</ContactName>
+            <Salutation></Salutation>
+            <Language>EN</Language>
+            <NotifyMode>DND</NotifyMode>
+            <Title></Title>
+            <Gender>N</Gender>
+            <JobCategory>EMU</JobCategory>
+            <Phone></Phone>
+            <PhoneExtension></PhoneExtension>
+            <Fax></Fax>
+            <Mobile></Mobile>
+            <HomePhone></HomePhone>
+            <Pager></Pager>
+            <OtherPhone></OtherPhone>
+            <Email></Email>
+            <WebAccessEnabled>false</WebAccessEnabled>
+            <ContactSource></ContactSource>
+            <DetailsVerified></DetailsVerified>
+            <Nationality TableName="RefCountry">
+              <Code></Code>
+            </Nationality>
+            <OrgAddress />
+            <AddressOverride TableName="OrgHeader" />
+          </OrgContact>
+        </OrgContactCollection>
+        <OrgAddressCollection>
+          <OrgAddress Action="MERGE">
+            <PK>16a5b893-cad0-4ef8-93d4-4dc5be5eec93</PK>
+            <IsActive>true</IsActive>
+            <Code>RUE EMILE STREIT</Code>
+            <CompanyNameOverride></CompanyNameOverride>
+            <Address1>RUE EMILE STREIT</Address1>
+            <Address2></Address2>
+            <City>ANTEUIL</City>
+            <State>25</State>
+            <PostCode>25340</PostCode>
+            <Phone></Phone>
+            <Fax></Fax>
+            <Mobile></Mobile>
+            <Email></Email>
+            <FCLEquipmentNeeded>WUP</FCLEquipmentNeeded>
+            <LCLEquipmentNeeded>PSL</LCLEquipmentNeeded>
+            <AIREquipmentNeeded>PSL</AIREquipmentNeeded>
+            <AuthorityToLeave>DEF</AuthorityToLeave>
+            <GroupNumber>0</GroupNumber>
+            <Language>EN</Language>
+            <OrgAddressCapabilityCollection>
+              <OrgAddressCapability Action="MERGE">
+                <PK>adf2e7fe-ba3d-49e1-9eb2-686282210a28</PK>
+                <AddressType>OFC</AddressType>
+                <IsMainAddress>true</IsMainAddress>
+              </OrgAddressCapability>
+            </OrgAddressCapabilityCollection>
+            <CountryCode TableName="RefCountry">
+              <Code>FR</Code>
+            </CountryCode>
+            <RelatedPortCode TableName="RefUNLOCO">
+              <Code>FRATI</Code>
+            </RelatedPortCode>
+          </OrgAddress>
+        </OrgAddressCollection>
+        <OrgSupplierBuyerLink_BuyerCollection TableName="OrgSupplierBuyerLink">
+          <OrgSupplierBuyerLink_Buyer Action="MERGE">
+            <PK>15c2ca79-895f-4185-a703-83e018da55a5</PK>
+            <DefaultDutyRate>0.000</DefaultDutyRate>
+            <AuthorityToLeave>DEF</AuthorityToLeave>
+            <OrgSupBuyLinkTrnModeCollection>
+              <OrgSupBuyLinkTrnMode Action="MERGE">
+                <PK>e4d6ff7f-83d1-412f-8fba-712115bf51a1</PK>
+                <TransportMode>AIR</TransportMode>
+                <ContainerMode>LSE</ContainerMode>
+                <IncoTerm>DAP</IncoTerm>
+                <NoOfOriginalBills>3</NoOfOriginalBills>
+                <NoOfCopyBills>3</NoOfCopyBills>
+              </OrgSupBuyLinkTrnMode>
+            </OrgSupBuyLinkTrnModeCollection>
+            <Buyer TableName="OrgHeader">
+              <Code>AHNCHEKPO</Code>
+            </Buyer>
+            <ImporterCountry TableName="RefCountry">
+              <Code>KR</Code>
+            </ImporterCountry>
+            <DefaultCurrency TableName="RefCurrency">
+              <Code>EUR</Code>
+            </DefaultCurrency>
+          </OrgSupplierBuyerLink_Buyer>
+        </OrgSupplierBuyerLink_BuyerCollection>
+        <OrgCompanyDataCollection>
+          <OrgCompanyData Action="MERGE">
+            <PK>3c29bbd8-22fb-473a-9a41-754824bce7a0</PK>
+            <IsDebtor>true</IsDebtor>
+            <IsCreditor>false</IsCreditor>
+            <APPaymentTerms>COD</APPaymentTerms>
+            <ARInvoiceTerms>COD</ARInvoiceTerms>
+            <ARInvoiceTermDays>0</ARInvoiceTermDays>
+            <ARCreditApproved>true</ARCreditApproved>
+            <ARClientNumber>00001109</ARClientNumber>
+            <APDefltCurrency TableName="RefCurrency"><Code>EUR</Code></APDefltCurrency>
+            <ARDDefltCurrency TableName="RefCurrency"><Code>EUR</Code></ARDDefltCurrency>
+            <ARDebtorGroup TableName="OrgDebtorGroup"><Code>TPY</Code></ARDebtorGroup>
+            <GlbCompany><Code>PAR</Code></GlbCompany>
+          </OrgCompanyData>
+          <OrgCompanyData Action="MERGE">
+            <PK>4c0e4d0f-89b8-4b30-9876-543eb076b25b</PK>
+            <IsDebtor>false</IsDebtor>
+            <IsCreditor>false</IsCreditor>
+            <APPaymentTerms>COD</APPaymentTerms>
+            <ARInvoiceTerms>COD</ARInvoiceTerms>
+            <ARCreditApproved>true</ARCreditApproved>
+            <ARDDefltCurrency TableName="RefCurrency"><Code>PHP</Code></ARDDefltCurrency>
+            <GlbCompany><Code>MNL</Code></GlbCompany>
+          </OrgCompanyData>
+        </OrgCompanyDataCollection>
+        <ClosestPort TableName="RefUNLOCO">
+          <Code>FRATI</Code>
+        </ClosestPort>
+        <ShippingLine TableName="RefShippingLine" />
+      </OrgHeader>
+    </Organization>
+  </Body>
+</Native>

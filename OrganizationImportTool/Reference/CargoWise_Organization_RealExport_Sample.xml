@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AUTHORITATIVE real CargoWise Organization export (client-supplied, DELFFRATI).
+  Use this as the ground-truth structure for the XML generator and the field contract.
+  Key facts this sample establishes (differ from the earlier hand-written template):
+    * Root is <Native ... version="2.0"> DIRECTLY - NOT wrapped in UniversalInterchange.
+    * Namespace is http://www.cargowise.com/Schemas/Native/2011/11  (note the /2011/11).
+    * Header carries <OwnerCode> + <EnableCodeMapping> (and OverrideAdditionalAddressInformation lives on OrgHeader).
+    * EVERY entity has a <PK> GUID and Action="MERGE". On import you may omit PK to let CW match by Code;
+      keep Action="MERGE" for insert-or-update.
+    * Role flag is <IsAirLine> (capital L), and there are user flags IsUserFlag1..32.
+    * OrgContact uses <ContactName> + <Title> (not Name/JobTitle); Gender 'N', NotifyMode 'DND' are valid.
+    * Reference lookups use TableName + inner <Code> (+ optional <PK>): CountryCode/RefCountry,
+      RelatedPortCode/RefUNLOCO, ClosestPort/RefUNLOCO, GlbCompany, ARDebtorGroup/OrgDebtorGroup,
+      APCreditorGroup/OrgCreditorGroup, currencies/RefCurrency.
+    * OrgCompanyDataCollection holds ONE OrgCompanyData per GL company (here PAR and MNL).
+    * Big optional blocks exist (OrgMiscServ, OrgSupplierBuyerLink_BuyerCollection) - CW fills sensible
+      defaults; a minimal import does NOT need to send them.
+-->
+<Native xmlns="http://www.cargowise.com/Schemas/Native/2011/11" version="2.0">
+  <Header>
+    <OwnerCode>EMOTRASXB</OwnerCode>
+    <EnableCodeMapping>true</EnableCodeMapping>
+  </Header>
+  <Body>
+    <Organization version="2.0">
+      <OrgHeader Action="MERGE">
+        <PK>00ff25db-35d0-40e1-af84-b5703265cd55</PK>
+        <Code>DELFFRATI</Code>
+        <IsActive>true</IsActive>
+        <FullName>DELFINGEN FR-ANTEUIL</FullName>
+        <IsConsignee>true</IsConsignee>
+        <IsConsignor>true</IsConsignor>
+        <IsTransportClient>false</IsTransportClient>
+        <IsWarehouseClient>false</IsWarehouseClient>
+        <IsForwarder>false</IsForwarder>
+        <IsShippingProvider>false</IsShippingProvider>
+        <IsAirWholesaler>false</IsAirWholesaler>
+        <IsSeaWholesaler>false</IsSeaWholesaler>
+        <IsRailProvider>false</IsRailProvider>
+        <IsLineHaulProvider>false</IsLineHaulProvider>
+        <IsMiscFreightServices>false</IsMiscFreightServices>
+        <IsAirCTO>false</IsAirCTO>
+        <IsAirLine>false</IsAirLine>
+        <IsBroker>false</IsBroker>
+        <IsContainerYard>false</IsContainerYard>
+        <IsLocalTransport>false</IsLocalTransport>
+        <IsPackDepot>false</IsPackDepot>
+        <IsSeaCTO>false</IsSeaCTO>
+        <IsShippingLine>false</IsShippingLine>
+        <IsUnpackDepot>false</IsUnpackDepot>
+        <IsRailHead>false</IsRailHead>
+        <IsRoadFreightDepot>false</IsRoadFreightDepot>
+        <IsShippingConsortium>false</IsShippingConsortium>
+        <IsFumigationContractor>false</IsFumigationContractor>
+        <IsGlobalAccount>false</IsGlobalAccount>
+        <IsNationalAccount>false</IsNationalAccount>
+        <IsSalesLead>false</IsSalesLead>
+        <IsCompetitor>false</IsCompetitor>
+        <IsTempAccount>false</IsTempAccount>
+        <IsPersonalEffectsAccount>false</IsPersonalEffectsAccount>
+        <IsDistributionCentre>false</IsDistributionCentre>
+        <Language>EN</Language>
+        <Category>BUS</Category>
+        <IsControllingAgent>false</IsControllingAgent>
+        <IsControllingCustomer>false</IsControllingCustomer>
+        <ScreeningStatus>CLR</ScreeningStatus>
+        <IsFerryWaterTerminal>false</IsFerryWaterTerminal>
+        <IsContainerLeasingCompany>false</IsContainerLeasingCompany>
+        <OverrideAdditionalAddressInformation>false</OverrideAdditionalAddressInformation>
+        <OrgContactCollection>
+          <OrgContact Action="MERGE">
+            <PK>484ebeb1-852f-4813-b944-d81e4a84a453</PK>
+            <IsActive>true</IsActive>
+            <ContactName>DUMMY CONTACT TO SUPPRESS DOCS</ContactName>
+            <Language>EN</Language>
+            <NotifyMode>DND</NotifyMode>
+            <Gender>N</Gender>
+            <JobCategory>EMU</JobCategory>
+            <WebAccessEnabled>false</WebAccessEnabled>
+            <Nationality TableName="RefCountry">
+              <Code></Code>
+            </Nationality>
+          </OrgContact>
+        </OrgContactCollection>
+        <OrgAddressCollection>
+          <OrgAddress Action="MERGE">
+            <PK>16a5b893-cad0-4ef8-93d4-4dc5be5eec93</PK>
+            <IsActive>true</IsActive>
+            <Code>RUE EMILE STREIT</Code>
+            <Address1>RUE EMILE STREIT</Address1>
+            <City>ANTEUIL</City>
+            <State>25</State>
+            <PostCode>25340</PostCode>
+            <AuthorityToLeave>DEF</AuthorityToLeave>
+            <Language>EN</Language>
+            <OrgAddressCapabilityCollection>
+              <OrgAddressCapability Action="MERGE">
+                <PK>adf2e7fe-ba3d-49e1-9eb2-686282210a28</PK>
+                <AddressType>OFC</AddressType>
+                <IsMainAddress>true</IsMainAddress>
+              </OrgAddressCapability>
+            </OrgAddressCapabilityCollection>
+            <CountryCode TableName="RefCountry">
+              <Code>FR</Code>
+            </CountryCode>
+            <RelatedPortCode TableName="RefUNLOCO">
+              <Code>FRATI</Code>
+            </RelatedPortCode>
+          </OrgAddress>
+        </OrgAddressCollection>
+        <OrgCompanyDataCollection>
+          <OrgCompanyData Action="MERGE">
+            <PK>3c29bbd8-22fb-473a-9a41-754824bce7a0</PK>
+            <IsDebtor>true</IsDebtor>
+            <IsCreditor>false</IsCreditor>
+            <ARClientNumber>00001109</ARClientNumber>
+            <ARCreditApproved>true</ARCreditApproved>
+            <APDefltCurrency TableName="RefCurrency"><Code>EUR</Code></APDefltCurrency>
+            <ARDDefltCurrency TableName="RefCurrency"><Code>EUR</Code></ARDDefltCurrency>
+            <ARDebtorGroup TableName="OrgDebtorGroup"><Code>TPY</Code></ARDebtorGroup>
+            <GlbCompany><Code>PAR</Code></GlbCompany>
+          </OrgCompanyData>
+          <OrgCompanyData Action="MERGE">
+            <PK>4c0e4d0f-89b8-4b30-9876-543eb076b25b</PK>
+            <IsDebtor>false</IsDebtor>
+            <IsCreditor>false</IsCreditor>
+            <ARDDefltCurrency TableName="RefCurrency"><Code>PHP</Code></ARDDefltCurrency>
+            <GlbCompany><Code>MNL</Code></GlbCompany>
+          </OrgCompanyData>
+        </OrgCompanyDataCollection>
+        <ClosestPort TableName="RefUNLOCO">
+          <Code>FRATI</Code>
+        </ClosestPort>
+        <ShippingLine TableName="RefShippingLine" />
+      </OrgHeader>
+    </Organization>
+  </Body>
+</Native>

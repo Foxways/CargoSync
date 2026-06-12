@@ -1,0 +1,87 @@
+================================================================================
+                      CargoSync - SERVICE AGREEMENT & LICENSE
+================================================================================
+
+Application : CargoSync (CargoWise Organization Importer)
+Developer   : Kishan Manohar  <kishanmanohar@gmail.com>
+License     : MIT License (Open Source)
+
+Please read this agreement carefully before installing or using CargoSync.
+By clicking "I accept the agreement" and continuing the installation, you
+acknowledge that you have read, understood, and agreed to all of the terms
+below. If you do not agree, click "Cancel" and do not install the software.
+
+--------------------------------------------------------------------------------
+1. ABOUT THE SOFTWARE
+--------------------------------------------------------------------------------
+CargoSync is a free, open-source desktop tool that helps you map, clean,
+validate and import organization records into CargoWise via the eAdaptor API.
+It is provided to the community at no cost.
+
+--------------------------------------------------------------------------------
+2. OPEN SOURCE LICENSE (MIT)
+--------------------------------------------------------------------------------
+Copyright (c) 2026 Kishan Manohar <kishanmanohar@gmail.com>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+--------------------------------------------------------------------------------
+3. NO WARRANTY / LIMITATION OF LIABILITY  (PLEASE READ)
+--------------------------------------------------------------------------------
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE
+AUTHOR OR COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+By using CargoSync you specifically agree that:
+
+  (a) The developer, Kishan Manohar (kishanmanohar@gmail.com), is NOT
+      responsible or liable for ANY data loss, data corruption, data damage,
+      incorrect imports, duplicated records, or any direct, indirect,
+      incidental or consequential damage of any kind that may result from the
+      installation or use of this software.
+
+  (b) CargoSync writes data to live external systems (CargoWise via eAdaptor).
+      YOU are solely responsible for verifying the data you import, for keeping
+      backups of your own data, and for testing against a non-production /
+      TEST environment before importing into a live production system.
+
+  (c) You use this software entirely AT YOUR OWN RISK.
+
+--------------------------------------------------------------------------------
+4. DATA, CREDENTIALS & THIRD-PARTY SERVICES
+--------------------------------------------------------------------------------
+  * Your CargoWise eAdaptor credentials and any API keys are stored locally on
+    your own computer (encrypted at rest using Windows DPAPI). They are not
+    transmitted to the developer.
+
+  * CargoSync ships pre-configured with an OpenRouter AI provider so that AI
+    features work immediately. This default key is provided for convenience on
+    a free tier and may be rate-limited, changed, or removed at any time. You
+    can replace it at any moment in:  AI Settings -> OpenRouter -> API Key.
+    You are responsible for the usage and cost of any API key you configure.
+
+  * AI features send the data you choose to process to the configured AI
+    provider (e.g. OpenRouter). Do not enable AI features for data you are not
+    permitted to send to a third-party service.
+
+--------------------------------------------------------------------------------
+5. ACCEPTANCE
+--------------------------------------------------------------------------------
+Continuing this installation constitutes your acceptance of this Service
+Agreement and the MIT License above.
+
+For questions, issues, or the source code, contact the developer:
+    Kishan Manohar  -  kishanmanohar@gmail.com
+
+================================================================================

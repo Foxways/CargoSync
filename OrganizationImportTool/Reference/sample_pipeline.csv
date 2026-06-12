@@ -1,0 +1,6 @@
+Account Code,Company Name,Street,Town,Province,Zip,Country,Closest Port,Consignee
+ZZPIPE001,  Acme  Imports  Pty Ltd ,12 Harbour Rd,Sydney,NSW,2000,Australia,ausyd,Yes
+ZZPIPE002,Globe Traders LLC,88 Market St,Melbourne,VIC,3000,australia,aumel,y
+ZZPIPE001,Acme Imports (Sydney),12 Harbour Road,Sydney,NSW,2000,AU,AUSYD,Yes
+,No Code Co,1 Nowhere St,Perth,WA,6000,Australia,auper,No
+ZZPIPE005,Sahara Exports FZE,Plot 7 Free Zone,Dubai,DU,00000,United Arab Emirates,aedxb,1

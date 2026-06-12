@@ -1,0 +1,15 @@
+# Build output
+bin/
+obj/
+TestResults/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Installer output (large binaries)
+Installer/Output/
+
+# Local Claude settings
+**/.claude/settings.local.json

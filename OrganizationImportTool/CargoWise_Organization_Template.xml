@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  CargoWise eAdaptor - Native Organization import template
+  =========================================================
+  Purpose : Create / merge an Organization in CargoWise via eAdaptor.
+  Schema  : Native (namespace http://www.cargowise.com/Schemas/Native)
+  Notes   :
+    * Action="INSERT" creates new only (fails if Code exists).
+      Use Action="MERGE" to insert-or-update (recommended for imports).
+    * Boolean fields must be the literal strings "true" / "false".
+    * Only Code (+ at least one address) is strictly required; every other
+      element is optional - omit elements you have no value for.
+    * Fields prefixed with a TableName attribute are CargoWise reference-table
+      lookups (Country, UNLOCO/port, currency, etc.) and must use valid CW codes.
+    * The truly authoritative XSD ships in the eAdaptor "Sample Interfaces Pack"
+      (WiseTech: My Account > Technical Guides > Integration Options > eAdaptor).
+-->
+<UniversalInterchange xmlns="http://www.cargowise.com/Schemas/Universal/2011/11" version="1.1">
+  <Header>
+    <SenderID>YOUR_SENDER_ID</SenderID>      <!-- from EAdaptors.SenderID -->
+    <RecipientID>RECIPIENT</RecipientID>
+  </Header>
+  <Body>
+    <Native xmlns="http://www.cargowise.com/Schemas/Native">
+      <Body>
+        <Organization version="2.0">
+          <!-- ============== ORG HEADER (core identity + roles) ============== -->
+          <OrgHeader Action="MERGE">
+            <Code>ORGCODE</Code>                         <!-- OrganizationData.CODE   (required) -->
+            <FullName>Example Company Pty Ltd</FullName>  <!-- OrganizationData.NAME -->
+            <IsActive>true</IsActive>
+
+            <!-- Registration / regulatory -->
+            <RegistrationNo>123456789</RegistrationNo>    <!-- OrganizationData.REGNO -->
+            <RegistrationNumberCollection>
+              <RegistrationNumber>
+                <Type TableName="RefOrgRegistrationType"><Code>GST</Code></Type>
+                <CountryOfIssue><Code>AU</Code></CountryOfIssue>
+                <Value>53004085616</Value>
+              </RegistrationNumber>
+            </RegistrationNumberCollection>
+
+            <!-- Role flags - map straight from your Excel Yes/No columns -->
+            <IsConsignee>false</IsConsignee>             <!-- CONSIGNEE -->
+            <IsConsignor>false</IsConsignor>             <!-- CONSIGNOR -->
+            <IsForwarder>false</IsForwarder>             <!-- FORWARDER -->
+            <IsBroker>false</IsBroker>                   <!-- BROKER -->
+            <IsCarrier>false</IsCarrier>                 <!-- CARRIER -->
+            <IsShippingProvider>false</IsShippingProvider> <!-- SHIPLINE -->
+            <IsAirline>false</IsAirline>                 <!-- AIRLINE -->
+            <IsLocalTransport>false</IsLocalTransport>   <!-- LOCALTRANSPORT -->
+            <IsDebtor>false</IsDebtor>                   <!-- DEBTOR -->
+            <IsCreditor>false</IsCreditor>               <!-- CREDITOR -->
+            <IsCompetitor>false</IsCompetitor>           <!-- COMPETITOR -->
+
+            <!-- Closest port (UNLOCO reference lookup) -->
+            <ClosestPort TableName="RefUNLOCO">
+              <Code>AUMEL</Code>                          <!-- UNLOCO / PORTCITY -->
+            </ClosestPort>
+
+            <!-- ============== ADDRESS COLLECTION ============== -->
+            <OrgAddressCollection>
+              <OrgAddress>
+                <Code>HOME</Code>
+                <IsActive>true</IsActive>
+                <!-- AddressType capability: OFC=Office, etc. IsMainAddress flags the primary -->
+                <Address1>123 Example Street</Address1>   <!-- ADDRESS1 -->
+                <Address2>Suite 4</Address2>              <!-- ADDRESS2 -->
+                <City>Melbourne</City>                     <!-- CITY -->
+                <State>VIC</State>                         <!-- STATE -->
+                <PostCode>3000</PostCode>                  <!-- POSTCODE -->
+                <Country><Code>AU</Code></Country>         <!-- COUNTRY (ISO-2) -->
+                <Phone>+61 3 9000 0000</Phone>             <!-- PHONE -->
+                <Fax>+61 3 9000 0001</Fax>                 <!-- FAX -->
+                <Email>info@example.com</Email>            <!-- EMAIL -->
+                <RelatedPort TableName="RefUNLOCO"><Code>AUMEL</Code></RelatedPort>
+                <OrgAddressCapabilityCollection>
+                  <OrgAddressCapability>
+                    <AddressType>OFC</AddressType>
+                    <IsMainAddress>true</IsMainAddress>
+                  </OrgAddressCapability>
+                </OrgAddressCapabilityCollection>
+              </OrgAddress>
+            </OrgAddressCollection>
+
+            <!-- ============== CONTACT COLLECTION ============== -->
+            <OrgContactCollection>
+              <OrgContact>
+                <Name>Jane Smith</Name>                    <!-- CONTACT -->
+                <JobTitle>Operations Manager</JobTitle>    <!-- TITLE -->
+                <Email>jane.smith@example.com</Email>      <!-- EMAIL2 -->
+                <Phone>+61 3 9000 0002</Phone>             <!-- PHONE2 -->
+                <Mobile>+61 400 000 000</Mobile>           <!-- MOBILE -->
+                <Fax>+61 3 9000 0003</Fax>                 <!-- FAX2 -->
+                <IsActive>true</IsActive>
+              </OrgContact>
+            </OrgContactCollection>
+          </OrgHeader>
+        </Organization>
+      </Body>
+    </Native>
+  </Body>
+</UniversalInterchange>

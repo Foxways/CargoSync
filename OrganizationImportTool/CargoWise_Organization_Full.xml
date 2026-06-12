@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  CargoWise eAdaptor - FULL Native Organization import reference
+  ==============================================================
+  Purpose : Exhaustive example exercising every field group in the
+            authoritative contract (Mapping/CargoWiseOrganizationFields.json).
+            Use as the master reference for XML generation + the Mapping page.
+
+  Conventions
+    * Action="MERGE" on OrgHeader = insert-or-update (recommended for imports).
+      Use "INSERT" to create-only (fails if Code exists).
+    * Booleans must be the literal strings "true" / "false".
+    * Only OrgHeader/Code (+ at least one address) is strictly required;
+      omit any element you have no value for - do NOT send empty tags.
+    * Elements with a TableName attribute are CargoWise reference-table
+      lookups - the inner <Code> must be a valid CW code.
+    * Fields commented "[extended]" exist in CargoWise but are NOT in the
+      create_detailed_organization MCP contract - verify vs the eAdaptor XSD
+      before relying on them.
+    * The authoritative XSD ships in the eAdaptor "Sample Interfaces Pack"
+      (WiseTech: My Account > Technical Guides > Integration Options).
+-->
+<UniversalInterchange xmlns="http://www.cargowise.com/Schemas/Universal/2011/11" version="1.1">
+  <Header>
+    <SenderID>YOUR_SENDER_ID</SenderID>        <!-- from EAdaptors.SenderID -->
+    <RecipientID>RECIPIENT</RecipientID>
+  </Header>
+  <Body>
+    <Native xmlns="http://www.cargowise.com/Schemas/Native">
+      <Body>
+        <Organization version="2.0">
+
+          <!-- ===================================================== -->
+          <!-- ENVELOPE / OPTIONS                                     -->
+          <!-- ===================================================== -->
+          <DataContext>
+            <DataTargetCollection>
+              <DataTarget>
+                <Type>Organization</Type>
+                <Key>ORGCODE</Key>                       <!-- orgHeader.code -->
+              </DataTarget>
+            </DataTargetCollection>
+            <Company><Code>CENGLOBAL</Code></Company>     <!-- ownerCode (default CENGLOBAL) -->
+            <EnableCodeMapping>false</EnableCodeMapping>   <!-- enableCodeMapping -->
+          </DataContext>
+
+          <!-- ===================================================== -->
+          <!-- ORG HEADER - core identity                            -->
+          <!-- ===================================================== -->
+          <OrgHeader Action="MERGE">
+            <Code>ORGCODE</Code>                          <!-- orgHeader.code (required, max 12) -->
+            <FullName>Example Company Pty Ltd</FullName>  <!-- orgHeader.fullName (required, max 100) -->
+            <IsActive>true</IsActive>                     <!-- orgHeader.isActive -->
+            <Language TableName="RefLanguage"><Code>EN</Code></Language>  <!-- orgHeader.language -->
+            <Category>BUS</Category>                      <!-- orgHeader.category  BUS|IND|GOV -->
+            <ScreeningStatus>NOT</ScreeningStatus>        <!-- orgHeader.screeningStatus NOT|PAS|FAL|PND -->
+            <ClosestPort TableName="RefUNLOCO"><Code>AUMEL</Code></ClosestPort>  <!-- orgHeader.closestPort -->
+            <Website>https://www.example.com</Website>    <!-- _extended.web [extended] -->
+
+            <!-- Registration / regulatory numbers -->
+            <RegistrationNumberCollection>
+              <RegistrationNumber>
+                <Type TableName="RefOrgRegistrationType"><Code>GST</Code></Type>
+                <CountryOfIssue><Code>AU</Code></CountryOfIssue>
+                <Value>53004085616</Value>
+              </RegistrationNumber>
+            </RegistrationNumberCollection>
+
+            <!-- ================================================= -->
+            <!-- ROLES / CAPABILITY FLAGS                           -->
+            <!-- ================================================= -->
+            <IsConsignee>false</IsConsignee>              <!-- orgHeader.isConsignee -->
+            <IsConsignor>false</IsConsignor>              <!-- orgHeader.isConsignor -->
+            <IsForwarder>false</IsForwarder>              <!-- orgHeader.isForwarder -->
+            <IsBroker>false</IsBroker>                    <!-- orgHeader.isBroker -->
+            <IsAirline>false</IsAirline>                  <!-- orgHeader.isAirLine -->
+            <IsShippingProvider>false</IsShippingProvider><!-- orgHeader.isShippingProvider -->
+            <IsShippingLine>false</IsShippingLine>        <!-- orgHeader.isShippingLine -->
+            <IsLocalTransport>false</IsLocalTransport>    <!-- orgHeader.isLocalTransport -->
+            <IsTransportClient>false</IsTransportClient>  <!-- orgHeader.isTransportClient -->
+            <IsWarehouseClient>false</IsWarehouseClient>  <!-- orgHeader.isWarehouseClient -->
+            <IsRailProvider>false</IsRailProvider>        <!-- orgHeader.isRailProvider -->
+            <IsRailHead>false</IsRailHead>                <!-- orgHeader.isRailHead -->
+            <IsRoadFreightDepot>false</IsRoadFreightDepot><!-- orgHeader.isRoadFreightDepot -->
+            <IsLineHaulProvider>false</IsLineHaulProvider><!-- orgHeader.isLineHaulProvider -->
+            <IsContainerYard>false</IsContainerYard>      <!-- orgHeader.isContainerYard -->
+            <IsContainerLeasingCompany>false</IsContainerLeasingCompany> <!-- orgHeader.isContainerLeasingCompany -->
+            <IsControllingAgent>false</IsControllingAgent><!-- orgHeader.isControllingAgent -->
+            <IsControllingCustomer>false</IsControllingCustomer> <!-- orgHeader.isControllingCustomer -->
+            <IsDistributionCentre>false</IsDistributionCentre>   <!-- orgHeader.isDistributionCentre -->
+            <IsGlobalAccount>false</IsGlobalAccount>      <!-- orgHeader.isGlobalAccount -->
+            <IsNationalAccount>false</IsNationalAccount>  <!-- orgHeader.isNationalAccount -->
+            <IsSalesLead>false</IsSalesLead>              <!-- orgHeader.isSalesLead -->
+            <IsCompetitor>false</IsCompetitor>            <!-- orgHeader.isCompetitor -->
+            <IsPackDepot>false</IsPackDepot>              <!-- orgHeader.isPackDepot -->
+            <IsUnpackDepot>false</IsUnpackDepot>          <!-- orgHeader.isUnpackDepot -->
+            <IsPersonalEffectsAccount>false</IsPersonalEffectsAccount> <!-- orgHeader.isPersonalEffectsAccount -->
+            <IsMiscFreightServices>false</IsMiscFreightServices> <!-- orgHeader.isMiscFreightServices -->
+            <IsSeaCTO>false</IsSeaCTO>                    <!-- orgHeader.isSeaCTO -->
+            <IsAirCTO>false</IsAirCTO>                    <!-- orgHeader.isAirCTO -->
+            <IsSeaWholesaler>false</IsSeaWholesaler>      <!-- orgHeader.isSeaWholesaler -->
+            <IsAirWholesaler>false</IsAirWholesaler>      <!-- orgHeader.isAirWholesaler -->
+            <IsShippingConsortium>false</IsShippingConsortium> <!-- orgHeader.isShippingConsortium -->
+            <IsTempAccount>false</IsTempAccount>          <!-- orgHeader.isTempAccount -->
+            <IsFerryWaterTerminal>false</IsFerryWaterTerminal>   <!-- orgHeader.isFerryWaterTerminal -->
+            <IsFumigationContractor>false</IsFumigationContractor> <!-- orgHeader.isFumigationContractor -->
+            <IsInlandWaterwayProvider>false</IsInlandWaterwayProvider> <!-- orgHeader.isInlandWaterwayProvider -->
+            <IsVGMContractor>false</IsVGMContractor>      <!-- orgHeader.isVGMContractor -->
+
+            <!-- ================================================= -->
+            <!-- ADDRESS COLLECTION (repeat OrgAddress per address) -->
+            <!-- ================================================= -->
+            <OrgAddressCollection>
+              <OrgAddress>
+                <Code>HOME</Code>                          <!-- orgAddressCollection[].code -->
+                <IsActive>true</IsActive>                  <!-- orgAddressCollection[].isActive -->
+                <Address1>123 Example Street</Address1>    <!-- orgAddressCollection[].address1 (max 50) -->
+                <Address2>Suite 4</Address2>               <!-- orgAddressCollection[].address2 (max 50) -->
+                <City>Melbourne</City>                     <!-- orgAddressCollection[].city -->
+                <State>VIC</State>                         <!-- orgAddressCollection[].state -->
+                <PostCode>3000</PostCode>                  <!-- orgAddressCollection[].postCode -->
+                <Country><Code>AU</Code></Country>         <!-- orgAddressCollection[].countryCode -->
+                <Phone>+61 3 9000 0000</Phone>             <!-- orgAddressCollection[].phone -->
+                <Fax>+61 3 9000 0001</Fax>                 <!-- orgAddressCollection[].fax -->
+                <Mobile>+61 400 000 000</Mobile>           <!-- orgAddressCollection[].mobile -->
+                <Email>info@example.com</Email>            <!-- orgAddressCollection[].email -->
+                <Language TableName="RefLanguage"><Code>EN</Code></Language> <!-- orgAddressCollection[].language -->
+                <CompanyNameOverride>Example Co (Melbourne)</CompanyNameOverride> <!-- orgAddressCollection[].companyNameOverride -->
+                <RelatedPort TableName="RefUNLOCO"><Code>AUMEL</Code></RelatedPort> <!-- orgAddressCollection[].relatedPortCode -->
+                <OrgAddressCapabilityCollection>
+                  <OrgAddressCapability>
+                    <AddressType>OFC</AddressType>         <!-- ...orgAddressCapabilityCollection[].addressType -->
+                    <IsMainAddress>true</IsMainAddress>    <!-- ...orgAddressCapabilityCollection[].isMainAddress -->
+                  </OrgAddressCapability>
+                </OrgAddressCapabilityCollection>
+              </OrgAddress>
+              <!-- Second address example (postal) -->
+              <OrgAddress>
+                <Code>POST</Code>
+                <IsActive>true</IsActive>
+                <Address1>PO Box 100</Address1>
+                <City>Melbourne</City>
+                <State>VIC</State>
+                <PostCode>3001</PostCode>
+                <Country><Code>AU</Code></Country>
+                <OrgAddressCapabilityCollection>
+                  <OrgAddressCapability>
+                    <AddressType>PAD</AddressType>
+                    <IsMainAddress>false</IsMainAddress>
+                  </OrgAddressCapability>
+                </OrgAddressCapabilityCollection>
+              </OrgAddress>
+            </OrgAddressCollection>
+
+            <!-- ================================================= -->
+            <!-- CONTACT COLLECTION (repeat OrgContact per person)  -->
+            <!-- ================================================= -->
+            <OrgContactCollection>
+              <OrgContact>
+                <Name>Jane Smith</Name>                    <!-- orgContactCollection[].contactName -->
+                <IsActive>true</IsActive>                  <!-- orgContactCollection[].isActive -->
+                <JobTitle>Operations Manager</JobTitle>    <!-- orgContactCollection[].title -->
+                <Salutation>Ms</Salutation>                <!-- orgContactCollection[].salutation -->
+                <Email>jane.smith@example.com</Email>      <!-- orgContactCollection[].email -->
+                <Phone>+61 3 9000 0002</Phone>             <!-- orgContactCollection[].phone -->
+                <Mobile>+61 400 000 001</Mobile>           <!-- orgContactCollection[].mobile -->
+                <Fax>+61 3 9000 0003</Fax>                 <!-- orgContactCollection[].fax -->
+                <HomePhone>+61 3 9000 0004</HomePhone>     <!-- orgContactCollection[].homePhone -->
+                <OtherPhone>+61 3 9000 0005</OtherPhone>   <!-- orgContactCollection[].otherPhone -->
+                <PhoneExtension>101</PhoneExtension>       <!-- orgContactCollection[].phoneExtension -->
+                <Gender>F</Gender>                         <!-- orgContactCollection[].gender  M|F|U -->
+                <Language TableName="RefLanguage"><Code>EN</Code></Language> <!-- orgContactCollection[].language -->
+                <Nationality><Code>AU</Code></Nationality> <!-- orgContactCollection[].nationality -->
+                <NotifyMode>EML</NotifyMode>               <!-- orgContactCollection[].notifyMode EML|FAX|MAN|EDI|PRT -->
+                <JobCategory>Operations</JobCategory>      <!-- orgContactCollection[].jobCategory -->
+                <ContactSource>Import</ContactSource>      <!-- orgContactCollection[].contactSource -->
+                <DateDetailsVerified>2026-06-09</DateDetailsVerified> <!-- orgContactCollection[].detailsVerified -->
+                <WebAccessEnabled>false</WebAccessEnabled> <!-- orgContactCollection[].webAccessEnabled -->
+              </OrgContact>
+            </OrgContactCollection>
+
+            <!-- ================================================= -->
+            <!-- CUSTOMS CODE COLLECTION                            -->
+            <!-- ================================================= -->
+            <OrgCusCodeCollection>
+              <OrgCusCode>
+                <CodeType>GST</CodeType>                   <!-- orgCusCodeCollection[].codeType VAT|GST|EOR|LSC|TAX|DUN|EIN -->
+                <CustomsRegNo>53004085616</CustomsRegNo>   <!-- orgCusCodeCollection[].customsRegNo -->
+                <Country><Code>AU</Code></Country>         <!-- orgCusCodeCollection[].codeCountry -->
+                <IsCountryDefault>true</IsCountryDefault>  <!-- orgCusCodeCollection[].countryDefault -->
+              </OrgCusCode>
+            </OrgCusCodeCollection>
+
+            <!-- ================================================= -->
+            <!-- COMPANY / ACCOUNTING DATA (per GL company)         -->
+            <!-- ================================================= -->
+            <OrgCompanyDataCollection>
+              <OrgCompanyData>
+                <Company TableName="GlbCompany"><Code>CEN</Code></Company> <!-- orgCompanyData.glbCompany -->
+                <IsDebtor>true</IsDebtor>                  <!-- orgCompanyData.isDebtor -->
+                <IsCreditor>false</IsCreditor>             <!-- orgCompanyData.isCreditor -->
+                <ARDebtorGroup TableName="GlbDebtorGroup"><Code>STD</Code></ARDebtorGroup>   <!-- orgCompanyData.arDebtorGroup -->
+                <APCreditorGroup TableName="GlbCreditorGroup"><Code>STD</Code></APCreditorGroup> <!-- orgCompanyData.apCreditorGroup -->
+                <ARExternalDebtorCode>EXT-D-001</ARExternalDebtorCode>     <!-- orgCompanyData.arExternalDebtorCode -->
+                <APExternalCreditorCode>EXT-C-001</APExternalCreditorCode> <!-- orgCompanyData.apExternalCreditorCode -->
+                <APCategory>STANDARD</APCategory>          <!-- orgCompanyData.apCategory -->
+                <LocalCurrency TableName="RefCurrency"><Code>AUD</Code></LocalCurrency> <!-- _extended.currency [extended] -->
+                <CreditLimit>50000</CreditLimit>           <!-- _extended.creditLimit [extended] -->
+                <BankName>Example Bank</BankName>          <!-- _extended.bankName [extended] -->
+                <BankAccountNo>123-456-789</BankAccountNo> <!-- _extended.accountNo [extended] -->
+              </OrgCompanyData>
+            </OrgCompanyDataCollection>
+
+          </OrgHeader>
+        </Organization>
+      </Body>
+    </Native>
+  </Body>
+</UniversalInterchange>
