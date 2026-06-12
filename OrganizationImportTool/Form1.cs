@@ -209,21 +209,28 @@ namespace OrganizationImportTool
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(26)));   // footer
 
             // ---- Header bar ----
-            var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, BackColor = Color.Transparent, Margin = new Padding(0) };
+            var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1, BackColor = Color.Transparent, Margin = new Padding(0) };
             header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));      // AI status chip
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 48));  // Help "?"
             header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
             var titleLbl = new Label { Text = "CargoSync", Dock = DockStyle.Fill, Font = AppleTheme.Title, ForeColor = AppleTheme.TextPrimary, TextAlign = ContentAlignment.MiddleLeft };
             aiChip = new AiStatusChip();
             aiChip.ToggleRequested += ToggleAi;
             aiChip.OpenSettingsRequested += () => AiSettingsBtn_Click(this, EventArgs.Empty);
+            var helpBtn = GunaButton("?", primary: false);
+            helpBtn.Dock = DockStyle.Fill;
+            helpBtn.Margin = new Padding(0, 9, 8, 9);
+            helpBtn.Font = AppleTheme.Font(12f, FontStyle.Bold);
+            helpBtn.Click += (s, e) => Help.HelpForm.Open(this);
             aiSettingsBtn = GunaButton("⚙   AI Settings", primary: true);
             aiSettingsBtn.Dock = DockStyle.Fill;
             aiSettingsBtn.Margin = new Padding(0, 8, 0, 8);
             aiSettingsBtn.Click += AiSettingsBtn_Click;
             header.Controls.Add(titleLbl, 0, 0);
             header.Controls.Add(aiChip, 1, 0);
-            header.Controls.Add(aiSettingsBtn, 2, 0);
+            header.Controls.Add(helpBtn, 2, 0);
+            header.Controls.Add(aiSettingsBtn, 3, 0);
 
             // ---- Input card ----
             var inputCard = GunaCard();
@@ -348,7 +355,8 @@ namespace OrganizationImportTool
             statusPanel.Controls.Add(progressBar, 0, 1);
 
             // ---- Footer ----
-            footerLabel = new Label { Text = $"CargoSync   ·   by Kishan Manohar © 2026   ·   v1.0.0          Signed in as: {_currentUser.Username}", Dock = DockStyle.Fill, Font = AppleTheme.Caption, ForeColor = AppleTheme.TextSecondary, TextAlign = ContentAlignment.MiddleLeft };
+            footerLabel = new Label { Text = $"CargoSync   ·   by Kishan Manohar © 2026   ·   v1.0.0   ·   About          Signed in as: {_currentUser.Username}", Dock = DockStyle.Fill, Font = AppleTheme.Caption, ForeColor = AppleTheme.TextSecondary, TextAlign = ContentAlignment.MiddleLeft, Cursor = Cursors.Hand };
+            footerLabel.Click += (s, e) => { using var about = new Help.AboutForm(); about.ShowDialog(this); };
 
             root.Controls.Add(header, 0, 0);
             root.Controls.Add(inputCard, 0, 1);
@@ -785,7 +793,12 @@ namespace OrganizationImportTool
                 // Professional response preview (titled "Dry Run" automatically when simulated).
                 if (result.Outcomes.Count > 0)
                     using (var preview = new ResponsePreviewForm(result.Outcomes))
+                    {
+                        StepBanner.Attach(preview, 6, 6, "Results",
+                            dryRun ? "Dry run — nothing was sent to CargoWise." : "The import has finished — nothing more will be sent.",
+                            "step-results");
                         preview.ShowDialog(this);
+                    }
             }
             catch (OperationCanceledException)
             {

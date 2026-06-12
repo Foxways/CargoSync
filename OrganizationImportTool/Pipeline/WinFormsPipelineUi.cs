@@ -43,18 +43,23 @@ namespace OrganizationImportTool.Pipeline
             MappingResult suggested, string clientId, TemplateStore templates)
         {
             using var mapForm = new MappingForm(contract, table, suggested, clientId, templates, _aiRouter);
+            Ui.StepBanner.Attach(mapForm, 1, 6, "Confirm the column mapping",
+                "Check each column goes to the right CargoWise field. Cancel stops the whole import.", "step-mapping");
             return Task.FromResult(mapForm.ShowDialog(_owner) == DialogResult.OK ? mapForm.ConfirmedResult : null);
         }
 
         public Task<bool> ConfirmProfileAsync(ProfileReport report)
         {
             using var dash = new ProfileDashboardForm(report);
+            Ui.StepBanner.Attach(dash, 2, 6, "Data health check", helpTopicId: "step-profile");
             return Task.FromResult(dash.ShowDialog(_owner) == DialogResult.OK);
         }
 
         public Task<DuplicateDecision> ReviewDuplicatesAsync(List<DuplicateGroup> groups)
         {
             using var dlg = new DuplicateReviewForm(groups);
+            Ui.StepBanner.Attach(dlg, 3, 6, "Review possible duplicates",
+                "This step only appears when duplicates were found. Cancel stops the whole import.", "step-duplicates");
             if (dlg.ShowDialog(_owner) != DialogResult.OK)
                 return Task.FromResult(new DuplicateDecision { Cancelled = true });
             return Task.FromResult(new DuplicateDecision
@@ -67,12 +72,16 @@ namespace OrganizationImportTool.Pipeline
         public Task<bool> ReviewCleaningAsync(List<CleaningChange> changes)
         {
             using var dlg = new DataCleaningForm(changes);
+            Ui.StepBanner.Attach(dlg, 4, 6, "Review data cleaning",
+                "Only ticked fixes are applied — your data is sent as-is by default. Cancel stops the whole import.", "step-cleaning");
             return Task.FromResult(dlg.ShowDialog(_owner) == DialogResult.OK);
         }
 
         public Task<bool> ReviewEnrichmentAsync(List<EnrichmentSuggestion> suggestions)
         {
             using var dlg = new EnrichmentReviewForm(suggestions);
+            Ui.StepBanner.Attach(dlg, 5, 6, "Fill empty fields",
+                "Only empty fields are ever filled, and only the ones you tick. Cancel stops the whole import.", "step-enrichment");
             return Task.FromResult(dlg.ShowDialog(_owner) == DialogResult.OK);
         }
 

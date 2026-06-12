@@ -129,6 +129,8 @@ namespace OrganizationImportTool
                     {
                         case "--ui-client": Application.Run(new EAdaptorSetupForm()); return;
                         case "--ui-wizard": Application.Run(new Onboarding.WelcomeWizard(() => 0, Ai.AiSettings.Load()) { ShowInTaskbar = true }); return;
+                        case "--ui-help": Application.Run(Help.HelpForm.CreateStandalone()); return;
+                        case "--ui-about": Application.Run(new Help.AboutForm { ShowInTaskbar = true, StartPosition = FormStartPosition.CenterScreen }); return;
                         case "--ui-forgot": Application.Run(new Auth.ForgotPasswordForm(new Auth.UserStore())); return;
                         case "--ui-main": Application.Run(new Form1(new Auth.User { Id = 1, Username = "demo" })); return;
                         case "--ui-map":
@@ -152,7 +154,10 @@ namespace OrganizationImportTool
                         case "--ui-dedup":
                         {
                             var groups = SelfTest.SampleDuplicateGroups();
-                            Application.Run(new Dedup.DuplicateReviewForm(groups));
+                            var dlg = new Dedup.DuplicateReviewForm(groups);
+                            Ui.StepBanner.Attach(dlg, 3, 6, "Review possible duplicates",
+                                "This step only appears when duplicates were found. Cancel stops the whole import.", "step-duplicates");
+                            Application.Run(dlg);
                             return;
                         }
                         case "--ui-clean":
