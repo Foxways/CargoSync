@@ -21,14 +21,16 @@ namespace OrganizationImportTool.Transform
         private static readonly object _cacheLock = new();
 
         /// <summary>Fill missing intelligent defaults into <paramref name="values"/>. Returns notes describing what was filled.</summary>
-        public static async Task<List<string>> FillMissingAsync(IDictionary<string, string> values, AiRouter? router, bool aiEnabled)
+        public static async Task<List<string>> FillMissingAsync(IDictionary<string, string> values, AiRouter? router, bool aiEnabled,
+            System.Threading.CancellationToken ct = default)
         {
             var notes = new List<string>();
-            await FillClosestPortAsync(values, router, aiEnabled, notes);
+            await FillClosestPortAsync(values, router, aiEnabled, notes, ct);
             return notes;
         }
 
-        private static async Task FillClosestPortAsync(IDictionary<string, string> values, AiRouter? router, bool aiEnabled, List<string> notes)
+        private static async Task FillClosestPortAsync(IDictionary<string, string> values, AiRouter? router, bool aiEnabled, List<string> notes,
+            System.Threading.CancellationToken ct)
         {
             if (NonEmpty(values, ClosestPortKey)) return; // already provided
 
@@ -44,7 +46,7 @@ namespace OrganizationImportTool.Transform
             else if (country.Length > 0 && CountryDefaultPort.TryGetValue(country.Trim().ToUpperInvariant(), out var byCountry)) { unloco = byCountry; source = $"country '{country}'"; }
             else if (aiEnabled && router != null && router.IsConfigured && (city.Length > 0 || country.Length > 0))
             {
-                unloco = await AskAiAsync(router, city, country);
+                unloco = await AskAiAsync(router, city, country, ct);
                 if (unloco != null) source = "AI";
             }
 
@@ -55,7 +57,7 @@ namespace OrganizationImportTool.Transform
             }
         }
 
-        private static async Task<string?> AskAiAsync(AiRouter router, string city, string country)
+        private static async Task<string?> AskAiAsync(AiRouter router, string city, string country, System.Threading.CancellationToken ct)
         {
             string key = $"{city}|{country}";
             lock (_cacheLock) { if (_aiCache.TryGetValue(key, out var cached)) return cached; }
@@ -69,7 +71,7 @@ namespace OrganizationImportTool.Transform
                     Prompt = $"City: {city}\nCountry: {country}",
                     MaxTokensOverride = 16,
                     Operation = "derive-unloco"
-                });
+                }, ct);
 
                 string? result = null;
                 if (resp.Success && !string.IsNullOrWhiteSpace(resp.Text))

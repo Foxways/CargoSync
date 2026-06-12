@@ -37,7 +37,7 @@ namespace OrganizationImportTool.Ai
         private Guna2DataGridView _usageGrid = null!;
         private Label _lblTotalTokens = null!;
         private Guna2CheckBox _chkSaveTokens = null!, _chkLowConfidence = null!;
-        private Guna2NumericUpDown _numLogRetention = null!, _numTokenRetention = null!;
+        private Guna2NumericUpDown _numLogRetention = null!, _numTokenRetention = null!, _numOpTimeout = null!;
 
         public AiSettingsForm(AiSettings settings, TokenUsageStore usage)
         {
@@ -210,22 +210,24 @@ namespace OrganizationImportTool.Ai
         {
             var host = new Panel { Dock = DockStyle.Fill, Padding = new Padding(16), BackColor = AppleTheme.Canvas };
 
-            var retentionCard = GunaUi.Card(); retentionCard.Dock = DockStyle.Top; retentionCard.Height = 210; retentionCard.Margin = new Padding(0, 0, 0, 12);
+            var retentionCard = GunaUi.Card(); retentionCard.Dock = DockStyle.Top; retentionCard.Height = 248; retentionCard.Margin = new Padding(0, 0, 0, 12);
             var rlbl = new Label { Text = "Logging & Retention", Dock = DockStyle.Top, Height = 28, Font = AppleTheme.Headline, ForeColor = AppleTheme.TextPrimary };
-            var rgrid = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 4 };
+            var rgrid = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 5 };
             rgrid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 330));
             rgrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            for (int i = 0; i < 4; i++) rgrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+            for (int i = 0; i < 5; i++) rgrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
 
             _numLogRetention = GunaUi.Numeric(); _numLogRetention.Width = 120; _numLogRetention.Minimum = 0; _numLogRetention.Maximum = 3650; _numLogRetention.Value = 30;
             _numTokenRetention = GunaUi.Numeric(); _numTokenRetention.Width = 120; _numTokenRetention.Minimum = 0; _numTokenRetention.Maximum = 3650; _numTokenRetention.Value = 90;
+            _numOpTimeout = GunaUi.Numeric(); _numOpTimeout.Width = 120; _numOpTimeout.Minimum = 5; _numOpTimeout.Maximum = 120; _numOpTimeout.Value = 20;
             _chkSaveTokens = GunaUi.Check("Save token-usage history to disk");
             _chkLowConfidence = GunaUi.Check("Use AI only for low-confidence columns (cheaper)");
 
             AddRow(rgrid, 0, "Delete logs older than (days, 0 = keep)", _numLogRetention);
             AddRow(rgrid, 1, "Delete token history older than (days)", _numTokenRetention);
-            AddRow(rgrid, 2, "", _chkSaveTokens);
-            AddRow(rgrid, 3, "", _chkLowConfidence);
+            AddRow(rgrid, 2, "Max seconds per AI call during an import", _numOpTimeout);
+            AddRow(rgrid, 3, "", _chkSaveTokens);
+            AddRow(rgrid, 4, "", _chkLowConfidence);
             retentionCard.Controls.Add(rgrid);
             retentionCard.Controls.Add(rlbl);
 
@@ -275,6 +277,7 @@ namespace OrganizationImportTool.Ai
             _chkLowConfidence.Checked = _settings.UseAiForLowConfidenceOnly;
             _numLogRetention.Value = Clamp(_settings.LogRetentionDays, 0, 3650);
             _numTokenRetention.Value = Clamp(_settings.TokenHistoryRetentionDays, 0, 3650);
+            _numOpTimeout.Value = Clamp(_settings.OperationTimeoutSeconds, 5, 120);
             _loading = false;
         }
 
@@ -418,6 +421,7 @@ namespace OrganizationImportTool.Ai
             _settings.UseAiForLowConfidenceOnly = _chkLowConfidence.Checked;
             _settings.LogRetentionDays = (int)_numLogRetention.Value;
             _settings.TokenHistoryRetentionDays = (int)_numTokenRetention.Value;
+            _settings.OperationTimeoutSeconds = (int)_numOpTimeout.Value;
 
             try
             {

@@ -97,6 +97,23 @@ namespace OrganizationImportTool.Pipeline
             var result = new PipelineResult();
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             ImportLog? importLog = null;
+
+            // AI resilience: re-arm the circuit breakers for this run, and narrate (once) when AI
+            // goes offline so the operator knows the import is continuing without it.
+            _ai?.ResetCircuits();
+            Action<AiStatus>? aiStatusHandler = null;
+            if (_ai != null)
+            {
+                aiStatusHandler = s =>
+                {
+                    if (s.Phase == AiPhase.ProviderDown)
+                        _ui.Log($"AI provider {s.ProviderName} is unavailable — skipping it for the rest of this run.");
+                    else if (s.Phase == AiPhase.Offline)
+                        _ui.Log("AI offline — continuing without AI (deterministic rules only).");
+                };
+                _ai.StatusChanged += aiStatusHandler;
+            }
+
             try
             {
                 // 1) Read the file - ANY structure (xlsx/csv), no required headers.
@@ -422,7 +439,7 @@ namespace OrganizationImportTool.Pipeline
 
                     // Inbuilt brain: derive values the client omitted but CargoWise needs
                     // (e.g. ClosestPort UN/LOCODE) - deterministically, with AI fallback when enabled.
-                    var derived = await SmartDefaults.FillMissingAsync(values, _ai, _aiSettings.Enabled);
+                    var derived = await SmartDefaults.FillMissingAsync(values, _ai, _aiSettings.Enabled, token);
 
                     string code = values.TryGetValue("orgHeader.code", out var cc) ? cc : $"(row {row.RowNumber})";
                     if (derived.Count > 0)
@@ -530,6 +547,7 @@ namespace OrganizationImportTool.Pipeline
             }
             finally
             {
+                if (_ai != null && aiStatusHandler != null) _ai.StatusChanged -= aiStatusHandler;
                 stopwatch.Stop();
                 result.Elapsed = stopwatch.Elapsed;
                 importLog?.Dispose();

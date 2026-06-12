@@ -30,6 +30,12 @@ namespace OrganizationImportTool.Ai
         /// <summary>Only map columns below this confidence with AI (so we don't pay for easy matches).</summary>
         public bool UseAiForLowConfidenceOnly { get; set; } = true;
 
+        /// <summary>
+        /// Max seconds for one AI call inside the import pipeline (per provider attempt). Keeps an
+        /// unreachable provider from stalling an import for the full HTTP timeout (minimum 5s).
+        /// </summary>
+        public int OperationTimeoutSeconds { get; set; } = 20;
+
         /// <summary>Enabled providers in fallback order.</summary>
         public IEnumerable<AiProviderProfile> FallbackChain => Providers.Where(p => p.Enabled);
 
