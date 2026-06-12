@@ -256,7 +256,7 @@ namespace OrganizationImportTool
             addClientBtn.Dock = DockStyle.Fill; addClientBtn.Margin = new Padding(4, 6, 0, 6);
             addClientBtn.Click += AddClientBtn_Click;
 
-            environmentLabel = new Label { Text = "Environment: —", Dock = DockStyle.Fill, Font = AppleTheme.Headline, ForeColor = AppleTheme.Accent, TextAlign = ContentAlignment.MiddleLeft };
+            environmentLabel = new Label { Text = "Will upload to: —", Dock = DockStyle.Fill, Font = AppleTheme.Headline, ForeColor = AppleTheme.Accent, TextAlign = ContentAlignment.MiddleLeft };
 
             var fileLbl = MakeFieldLabel("File");
             filePathBox = new Guna2TextBox
@@ -278,8 +278,8 @@ namespace OrganizationImportTool
             pauseBtn.Size = new Size(110, 40); pauseBtn.Enabled = false; pauseBtn.Margin = new Padding(0, 2, 8, 2);
             cancelBtn = GunaButton("Stop", primary: false);
             cancelBtn.Size = new Size(110, 40); cancelBtn.Enabled = false; cancelBtn.Margin = new Padding(0, 2, 4, 2);
-            cwSyncBtn = GunaButton("CW Sync", primary: false);
-            cwSyncBtn.Size = new Size(120, 40); cwSyncBtn.Enabled = false; cwSyncBtn.Margin = new Padding(10, 2, 4, 2);
+            cwSyncBtn = GunaButton("Import History", primary: false);
+            cwSyncBtn.Size = new Size(150, 40); cwSyncBtn.Enabled = false; cwSyncBtn.Margin = new Padding(10, 2, 4, 2);
             uploadBtn.Click += UploadBtn_ClickAsync;
             dryRunBtn.Click += UploadBtn_ClickAsync;   // same pipeline, simulate only (decided by sender)
             pauseBtn.Click += PauseBtn_Click;
@@ -364,6 +364,21 @@ namespace OrganizationImportTool
             root.Controls.Add(statusPanel, 0, 3);
             root.Controls.Add(footerLabel, 0, 4);
             this.Controls.Add(root);
+
+            // Plain-language hints on every interactive control.
+            Tips.Set(this, clientBox, "Choose which CargoWise company to import into. Set one up with Add Client.");
+            Tips.Set(this, addClientBtn, "Add or edit a CargoWise connection (eAdaptor URL, sign-in details, log folder).");
+            Tips.Set(this, filePathBox, "The Excel or CSV file of organizations to import. Any layout works.");
+            Tips.Set(this, browseBtn, "Pick the Excel/CSV file of organizations. Any column names are fine.");
+            Tips.Set(this, uploadBtn, "Import for real: after your review and approval, sends each organization to CargoWise.");
+            Tips.Set(this, dryRunBtn, "Practice run — checks and previews EVERYTHING but sends nothing. Great for new files.");
+            Tips.Set(this, pauseBtn, "Pause between organizations; click again to resume.");
+            Tips.Set(this, cancelBtn, "Stop the import after the organization currently being sent finishes.");
+            Tips.Set(this, cwSyncBtn, "Everything already sent to CargoWise for this client (the sync ledger).");
+            Tips.Set(this, aiChip, "AI status. Click to turn AI on/off or open AI Settings. Everything works with AI off.");
+            Tips.Set(this, helpBtn, "Open the CargoSync guide — the whole flow explained A to Z.");
+            Tips.Set(this, aiSettingsBtn, "Configure AI providers, usage history and log retention.");
+            Tips.Set(this, footerLabel, "Click for version and support information.");
 
             _busySpinner = new Spinner { Size = new Size(30, 30), Visible = false };
             this.Controls.Add(_busySpinner);
@@ -617,11 +632,18 @@ namespace OrganizationImportTool
 
                 // Query the EAdaptors table to get the Environment based on clientId
                 string environment = GetEnvironmentForClient(clientId);
-                environmentLabel.Text = $"Environment to upload : {environment}";
+                bool isLive = environment.Trim().Equals("PRD", StringComparison.OrdinalIgnoreCase);
+                environmentLabel.Text = isLive
+                    ? $"Will upload to: {environment}  (LIVE — real data!)"
+                    : environment.Trim().Equals("TST", StringComparison.OrdinalIgnoreCase)
+                        ? $"Will upload to: {environment}  (test environment)"
+                        : $"Will upload to: {environment}";
+                environmentLabel.ForeColor = isLive ? AppleTheme.Warning : AppleTheme.Accent;
             }
             else
             {
-                environmentLabel.Text = "Environment to upload : -- ";
+                environmentLabel.Text = "Will upload to: —";
+                environmentLabel.ForeColor = AppleTheme.Accent;
             }
         }
         private string GetEnvironmentForClient(string clientId)

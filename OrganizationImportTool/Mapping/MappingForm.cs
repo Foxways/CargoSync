@@ -132,7 +132,7 @@ namespace OrganizationImportTool.Mapping
             leftFlow.Controls.Add(copilotBtn);
 
             _confirmBtn = GunaUi.Button("Confirm Mapping  ✓", primary: true); _confirmBtn.Size = new Size(190, 36); _confirmBtn.Click += ConfirmBtn_Click;
-            var cancelBtn = GunaUi.Button("Cancel", primary: false); cancelBtn.Size = new Size(100, 36); cancelBtn.DialogResult = DialogResult.Cancel;
+            var cancelBtn = GunaUi.Button("Cancel import", primary: false); cancelBtn.Size = new Size(130, 36); cancelBtn.DialogResult = DialogResult.Cancel;
             var rightFlow = new FlowLayoutPanel { Dock = DockStyle.Right, FlowDirection = FlowDirection.RightToLeft, AutoSize = true, WrapContents = false, BackColor = Color.Transparent };
             rightFlow.Controls.Add(_confirmBtn);
             rightFlow.Controls.Add(cancelBtn);

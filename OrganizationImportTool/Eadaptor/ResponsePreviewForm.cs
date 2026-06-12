@@ -41,7 +41,7 @@ namespace OrganizationImportTool.Eadaptor
 
             bool dryRun = _outcomes.Any(o => o.Response.Simulated);
 
-            var header = new Panel { Dock = DockStyle.Top, Height = 96, BackColor = AppleTheme.Canvas, Padding = new Padding(0, 6, 0, 6) };
+            var header = new Panel { Dock = DockStyle.Top, Height = LogicalToDeviceUnits(118), BackColor = AppleTheme.Canvas, Padding = new Padding(0, 6, 0, 6) };
             var title = new Label
             {
                 Text = dryRun ? "Import Preview  (Dry Run — nothing was sent)" : "Import Results",
@@ -84,6 +84,17 @@ namespace OrganizationImportTool.Eadaptor
                 Text = summaryText,
                 ForeColor = summaryColor
             };
+            // CargoWise speak, translated - so PRS/WRN/ERR never need explaining in person.
+            var legend = new Label
+            {
+                Dock = DockStyle.Top, Height = LogicalToDeviceUnits(22),
+                Padding = new Padding(22, 2, 0, 0),
+                Font = AppleTheme.Caption, ForeColor = AppleTheme.TextSecondary,
+                Text = dryRun
+                    ? "SIM = would send (dry run)   ·   DUP = skipped duplicate   ·   ERR = would be rejected/blocked"
+                    : "PRS = Processed (accepted)   ·   WRN = stored with warnings   ·   ERR = rejected   ·   DUP = skipped duplicate"
+            };
+            header.Controls.Add(legend);
             header.Controls.Add(_summary);
             header.Controls.Add(title);
 

@@ -149,6 +149,21 @@ namespace OrganizationImportTool
             root.Controls.Add(leftCard, 0, 0);
             root.Controls.Add(rightCard, 1, 0);
             this.Controls.Add(root);
+
+            // Plain-language hints (the jargon here is the #1 onboarding hurdle).
+            Tips.Set(this, clientBox, "Any name you like for this connection, e.g. \"Acme Logistics (Test)\".");
+            Tips.Set(this, envBox, "TST = CargoWise test system (practice here). PRD = the real live system.");
+            Tips.Set(this, urlBox, "The web address of your CargoWise eAdaptor inbound service — ask your CargoWise administrator. Usually ends in /eAdaptor.");
+            Tips.Set(this, senderBox, "The eAdaptor account name (Sender ID) from your CargoWise administrator.");
+            Tips.Set(this, passwordBox, "The eAdaptor account password. Stored encrypted on this computer.");
+            Tips.Set(this, enterpriseBox, "Your CargoWise enterprise code, e.g. CGD.");
+            Tips.Set(this, companyCodeBox, "Optional: which CargoWise company owns the imported organizations.");
+            Tips.Set(this, logPathBox, "Where detailed import reports are saved for this client.");
+            Tips.Set(this, testBtn, "Checks the URL and sign-in details against the live eAdaptor — nothing is imported.");
+            Tips.Set(this, newBtn, "Clear the form to add another connection.");
+            Tips.Set(this, saveBtn, "Save this connection as a new client.");
+            Tips.Set(this, updateBtn, "Save changes to the client selected in the grid.");
+
             FormAnimator.FadeIn(this);
         }
 

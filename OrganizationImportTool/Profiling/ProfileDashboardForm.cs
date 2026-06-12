@@ -96,7 +96,7 @@ namespace OrganizationImportTool.Profiling
             var bottom = new Panel { Dock = DockStyle.Fill, BackColor = AppleTheme.Canvas, Padding = new Padding(18, 14, 18, 0) };
             var stripP = new Panel { Dock = DockStyle.Top, Height = 44, BackColor = Color.Transparent };
             var cont = GunaUi.Button("Continue import", primary: true); cont.Size = new Size(170, 40); cont.DialogResult = DialogResult.OK; cont.Margin = new Padding(8, 0, 0, 0);
-            var cancel = GunaUi.Button("Cancel", primary: false); cancel.Size = new Size(120, 40); cancel.DialogResult = DialogResult.Cancel; cancel.Margin = new Padding(8, 0, 8, 0);
+            var cancel = GunaUi.Button("Cancel import", primary: false); cancel.Size = new Size(150, 40); cancel.DialogResult = DialogResult.Cancel; cancel.Margin = new Padding(8, 0, 8, 0);
             var right = new FlowLayoutPanel { Dock = DockStyle.Right, FlowDirection = FlowDirection.RightToLeft, AutoSize = true, WrapContents = false, BackColor = Color.Transparent };
             right.Controls.Add(cont); right.Controls.Add(cancel);
             stripP.Controls.Add(right);
