@@ -19,6 +19,19 @@ namespace OrganizationImportTool
         [STAThread]
         static void Main(string[] args)
         {
+            // Last-line-of-defence: any unhandled exception is crash-logged and shown as a
+            // friendly dialog (console line in CLI modes) instead of killing the app silently.
+            Logging.CrashHandler.Headless =
+                args.Length > 0 && !args[0].StartsWith("--ui-", StringComparison.OrdinalIgnoreCase);
+            Logging.CrashHandler.Install();
+
+            // If a secret ever has to be stored un-encrypted (DPAPI failure), make it visible.
+            SecretProtector.ProtectFailed += msg =>
+            {
+                if (Logging.CrashHandler.Headless) Console.WriteLine("SECURITY WARNING: " + msg);
+                else MessageBox.Show(msg, "CargoSync - Security Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            };
+
             // Put the whole app in dark mode so every native scrollbar (grids, text boxes, the main
             // screen) renders dark to match the theme.
             Ui.AppleTheme.EnableDarkMode();
@@ -194,7 +207,7 @@ namespace OrganizationImportTool
                 Application.SetHighDpiMode(HighDpiMode.SystemAware);
                 Application.EnableVisualStyles();
                 Application.SetCompatibleTextRenderingDefault(false);
-                var st = new Auth.UserStore(); try { st.EnsureSchema(); } catch { }
+                var st = new Auth.UserStore(); try { st.EnsureSchema(); } catch (Exception ex) { Logging.AppLog.Warn("User schema check failed", ex); }
                 Application.Run(new Auth.CreateUserForm(st));
                 return;
             }
@@ -213,7 +226,7 @@ namespace OrganizationImportTool
 
             // ---- Authentication gate ----
             var users = new Auth.UserStore();
-            try { users.EnsureSchema(); } catch { }
+            try { users.EnsureSchema(); } catch (Exception ex) { Logging.AppLog.Error("User schema creation failed - sign-in may not work", ex); }
 
             Auth.User? currentUser = null;
             using (var login = new Auth.LoginForm(users))

@@ -89,7 +89,7 @@ namespace OrganizationImportTool.Enrichment
                     if (val.Length > 0 && code.Length == 2) map[val] = code;
                 }
             }
-            catch { }
+            catch (Exception ex) { Logging.AppLog.Warn("AI enrichment response unusable - skipping AI suggestions", ex); }
             return map;
         }
     }

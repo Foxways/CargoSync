@@ -53,7 +53,7 @@ namespace OrganizationImportTool.Ai
                     if (s != null) return s;
                 }
             }
-            catch { /* fall through to defaults */ }
+            catch (Exception ex) { Logging.AppLog.Warn("AI settings file unreadable - using defaults", ex); }
             return new AiSettings();
         }
 

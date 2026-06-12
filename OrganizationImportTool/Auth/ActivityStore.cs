@@ -52,7 +52,7 @@ namespace OrganizationImportTool.Auth
                 cmd.Parameters.AddWithValue("@w", DateTime.UtcNow.ToString("o"));
                 cmd.ExecuteNonQuery();
             }
-            catch { /* activity logging must never break an import */ }
+            catch (Exception ex) { Logging.AppLog.Warn("Activity record failed", ex); /* must never break an import */ }
         }
 
         public List<ImportActivity> Recent(int max = 200)
@@ -81,7 +81,7 @@ namespace OrganizationImportTool.Auth
                     });
                 }
             }
-            catch { }
+            catch (Exception ex) { Logging.AppLog.Warn("Activity history read failed", ex); }
             return list;
         }
 

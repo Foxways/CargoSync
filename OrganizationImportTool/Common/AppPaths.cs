@@ -49,7 +49,7 @@ namespace OrganizationImportTool
                         string seed = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "data.db");
                         if (File.Exists(seed)) File.Copy(seed, target, overwrite: false);
                     }
-                    catch { /* if seeding fails the stores create an empty schema on demand */ }
+                    catch (Exception ex) { Logging.AppLog.Warn("Seed database copy failed - stores will create an empty schema", ex); }
                 }
                 return target;
             }

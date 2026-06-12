@@ -32,7 +32,7 @@ namespace OrganizationImportTool.Mapping
                     var t = JsonSerializer.Deserialize<MappingTemplate>(File.ReadAllText(file));
                     if (t != null) list.Add(t);
                 }
-                catch { /* skip corrupt template files */ }
+                catch (Exception ex) { Logging.AppLog.Warn($"Skipping corrupt template file '{Path.GetFileName(file)}'", ex); }
             }
             return list.OrderBy(t => t.Name, StringComparer.OrdinalIgnoreCase).ToList();
         }
@@ -82,7 +82,7 @@ namespace OrganizationImportTool.Mapping
         public void Delete(string id)
         {
             string path = Path.Combine(_dir, id + ".json");
-            try { if (File.Exists(path)) File.Delete(path); } catch { }
+            try { if (File.Exists(path)) File.Delete(path); } catch (Exception ex) { Logging.AppLog.Warn($"Template delete failed for '{id}'", ex); }
         }
     }
 

@@ -117,15 +117,24 @@ namespace OrganizationImportTool.Auth
             string u = _user.Text.Trim(), p = _pass.Text;
             if (u.Length == 0 || p.Length == 0) { ShowError("Enter your username and password."); return; }
 
-            SetBusy(true);
-            var authTask = Task.Run(() => _store.Authenticate(u, p));
-            await Task.WhenAll(authTask, Task.Delay(650)); // keep the spinner visible briefly
-            var user = authTask.Result;
+            try
+            {
+                SetBusy(true);
+                var authTask = Task.Run(() => _store.Authenticate(u, p));
+                await Task.WhenAll(authTask, Task.Delay(650)); // keep the spinner visible briefly
+                var user = authTask.Result;
 
-            if (user == null) { SetBusy(false); ShowError("Incorrect username or password."); return; }
+                if (user == null) { SetBusy(false); ShowError("Incorrect username or password."); return; }
 
-            AuthenticatedUser = user;
-            Close();
+                AuthenticatedUser = user;
+                Close();
+            }
+            catch (Exception ex)
+            {
+                SetBusy(false);
+                ShowError("Sign-in failed: " + ex.Message);
+                Logging.AppLog.Error("Login failed unexpectedly", ex);
+            }
         }
 
         private void SetBusy(bool busy)

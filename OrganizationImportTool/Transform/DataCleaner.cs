@@ -226,7 +226,7 @@ namespace OrganizationImportTool.Transform
                     map[val] = code;
                 }
             }
-            catch { /* AI unavailable - deterministic results still stand */ }
+            catch (Exception ex) { Logging.AppLog.Warn("AI cleaning unavailable - deterministic fixes still apply", ex); }
             return map;
         }
 

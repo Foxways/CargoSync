@@ -88,7 +88,7 @@ namespace OrganizationImportTool
                 LogRetention.ApplyAll(_aiSettings.LogRetentionDays);
                 _aiUsage.PurgeOlderThan(_aiSettings.TokenHistoryRetentionDays);
             }
-            catch { /* AI is optional - never block app start */ }
+            catch (Exception ex) { Logging.AppLog.Warn("AI initialization failed - continuing without AI", ex); }
         }
 
         private void InitializeDatabase()
@@ -627,8 +627,8 @@ namespace OrganizationImportTool
 
             var details = GetEAdaptorDetailsForClient(clientId);
             string logDir = Directory.Exists(details.LogPath) ? details.LogPath : AppPaths.LogsDir;
-            try { Logger.Setup(logDir); } catch { }
-            try { LogRetention.Apply(logDir, _aiSettings.LogRetentionDays, "*.txt"); LogRetention.Apply(logDir, _aiSettings.LogRetentionDays, "*.log"); } catch { }
+            try { Logger.Setup(logDir); } catch (Exception lex) { Logging.AppLog.Warn($"Logger setup failed for '{logDir}'", lex); }
+            try { LogRetention.Apply(logDir, _aiSettings.LogRetentionDays, "*.txt"); LogRetention.Apply(logDir, _aiSettings.LogRetentionDays, "*.log"); } catch (Exception rex) { Logging.AppLog.Warn("Log retention sweep failed", rex); }
 
             if (dryRun)
                 logBox.AppendText("=== DRY RUN — simulating the import. Nothing will be sent to CargoWise. ===\r\n");
@@ -760,7 +760,7 @@ namespace OrganizationImportTool
 
                 int cleaningPreviewCount = 0;
                 try { cleaningPreviewCount = (await new DataCleaner().AnalyzeAsync(rowValues, contract, null, false, token)).Count; }
-                catch { }
+                catch (Exception cex) { Logging.AppLog.Warn("Cleaning preview count failed (profile dashboard will show 0)", cex); }
 
                 // CargoWise feedback sync: how many of these rows were already imported for this client.
                 int alreadySynced = 0;
@@ -773,7 +773,7 @@ namespace OrganizationImportTool
                     if (alreadySynced > 0)
                         logBox.AppendText($"Sync: {alreadySynced} of {rowValues.Count} row(s) were already imported to CargoWise for this client (will update).\r\n");
                 }
-                catch { }
+                catch (Exception sex) { Logging.AppLog.Warn("Sync-ledger pre-check failed (already-imported count unavailable)", sex); }
 
                 // 3b) Data-profiling risk dashboard — a pre-flight data-health overview.
                 try
@@ -1036,7 +1036,7 @@ namespace OrganizationImportTool
                             Username = _currentUser.Username, SyncedUtc = DateTime.UtcNow
                         });
                     }
-                    catch { }
+                    catch (Exception fex) { Logging.AppLog.Warn($"Sync ledger record failed for '{code}' (resume detection may miss this row)", fex); }
 
                     if (resp.IsSuccess)
                         Logger.LogSuccess($"{code} -> {resp.Outcome} ({resp.LocalCode}) msg {resp.MessageNumber}");
@@ -1088,7 +1088,7 @@ namespace OrganizationImportTool
                         new ActivityStore().Record(_currentUser.Id, _currentUser.Username, clientName,
                             Path.GetFileName(selectedFilePath), outcomes.Count, ok, failed, notSentCount);
                     }
-                    catch { }
+                    catch (Exception aex) { Logging.AppLog.Warn("Activity audit record failed", aex); }
 
                     logBox.AppendText($"\r\nDone. {ok} succeeded, {failed} failed of {outcomes.Count}.\r\n");
                     if (importLog?.Ok == true) logBox.AppendText($"Full details written to: {importLog.FilePath}\r\n");
@@ -1108,7 +1108,8 @@ namespace OrganizationImportTool
             catch (Exception ex)
             {
                 logBox.AppendText($"Error during upload: {ex.Message}\r\n");
-                try { Logger.LogFailure("Upload error", ex); } catch { }
+                Logging.AppLog.Error("Upload pipeline failed", ex);
+                try { Logger.LogFailure("Upload error", ex); } catch { /* per-client logger may be unavailable */ }
             }
             finally
             {

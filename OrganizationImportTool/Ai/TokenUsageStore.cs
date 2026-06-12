@@ -62,7 +62,7 @@ namespace OrganizationImportTool.Ai
                     Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
                     File.AppendAllText(_path, JsonSerializer.Serialize(record) + Environment.NewLine);
                 }
-                catch { /* usage history is best-effort - never break the import over it */ }
+                catch (Exception ex) { Logging.AppLog.Warn("Token usage history write failed", ex); /* best-effort */ }
             }
         }
 
@@ -115,7 +115,7 @@ namespace OrganizationImportTool.Ai
             lock (_lock)
             {
                 _records.Clear();
-                try { if (File.Exists(_path)) File.Delete(_path); } catch { }
+                try { if (File.Exists(_path)) File.Delete(_path); } catch (Exception ex) { Logging.AppLog.Warn("Token usage history delete failed", ex); }
             }
         }
 
@@ -131,7 +131,7 @@ namespace OrganizationImportTool.Ai
                     if (rec != null) _records.Add(rec);
                 }
             }
-            catch { /* corrupt history shouldn't stop the app */ }
+            catch (Exception ex) { Logging.AppLog.Warn("Token usage history is corrupt - starting empty", ex); }
         }
 
         private void Rewrite()
@@ -141,7 +141,7 @@ namespace OrganizationImportTool.Ai
                 Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
                 File.WriteAllLines(_path, _records.Select(r => JsonSerializer.Serialize(r)));
             }
-            catch { }
+            catch (Exception ex) { Logging.AppLog.Warn("Token usage history rewrite failed", ex); }
         }
     }
 }

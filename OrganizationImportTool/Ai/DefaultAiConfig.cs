@@ -61,7 +61,7 @@ namespace OrganizationImportTool.Ai
                 };
                 settings.Save(path);
             }
-            catch { /* never block app startup over default seeding */ }
+            catch (Exception ex) { Logging.AppLog.Warn("Default AI config seeding failed - AI can be set up manually", ex); }
         }
     }
 }

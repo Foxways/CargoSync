@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS CwSync (
 CREATE INDEX IF NOT EXISTS IX_CwSync_Client_Sent ON CwSync (ClientId, SentCode);";
                 cmd.ExecuteNonQuery();
             }
-            catch { /* sync ledger must never break an import */ }
+            catch (Exception ex) { Logging.AppLog.Warn("Sync ledger schema creation failed", ex); /* must never break an import */ }
         }
 
         public void Record(CwSyncEntry e)
@@ -89,7 +89,7 @@ CREATE INDEX IF NOT EXISTS IX_CwSync_Client_Sent ON CwSync (ClientId, SentCode);
                 cmd.Parameters.AddWithValue("@w", (e.SyncedUtc == default ? DateTime.UtcNow : e.SyncedUtc).ToString("o"));
                 cmd.ExecuteNonQuery();
             }
-            catch { }
+            catch (Exception ex) { Logging.AppLog.Warn($"Sync ledger write failed for '{e.SentCode}'", ex); }
         }
 
         /// <summary>The set of codes already successfully synced to CargoWise for a client (for re-import detection).</summary>
@@ -112,7 +112,7 @@ CREATE INDEX IF NOT EXISTS IX_CwSync_Client_Sent ON CwSync (ClientId, SentCode);
                     if (stc.Length > 0) set.Add(stc);
                 }
             }
-            catch { }
+            catch (Exception ex) { Logging.AppLog.Warn("Sync ledger read (SyncedCodes) failed", ex); }
             return set;
         }
 
@@ -131,7 +131,7 @@ CREATE INDEX IF NOT EXISTS IX_CwSync_Client_Sent ON CwSync (ClientId, SentCode);
                 using var r = cmd.ExecuteReader();
                 while (r.Read()) list.Add(Read(r));
             }
-            catch { }
+            catch (Exception ex) { Logging.AppLog.Warn("Sync ledger read (ForClient) failed", ex); }
             return list;
         }
 
