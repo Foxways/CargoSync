@@ -78,5 +78,42 @@ namespace OrganizationImportTool.Ai
             Name = "Anthropic (Claude)", Kind = AiProviderKind.Anthropic,
             BaseUrl = "https://api.anthropic.com", Model = "claude-sonnet-4-6"
         };
+
+        public static AiProviderProfile GeminiTemplate() => new AiProviderProfile
+        {
+            Name = "Google Gemini", Kind = AiProviderKind.OpenAiCompatible,
+            BaseUrl = "https://generativelanguage.googleapis.com/v1beta/openai", Model = "gemini-2.0-flash"
+        };
+
+        public static AiProviderProfile GroqTemplate() => new AiProviderProfile
+        {
+            Name = "Groq", Kind = AiProviderKind.OpenAiCompatible,
+            BaseUrl = "https://api.groq.com/openai/v1", Model = "llama-3.3-70b-versatile"
+        };
+
+        public static AiProviderProfile DeepSeekTemplate() => new AiProviderProfile
+        {
+            Name = "DeepSeek", Kind = AiProviderKind.OpenAiCompatible,
+            BaseUrl = "https://api.deepseek.com/v1", Model = "deepseek-chat"
+        };
+
+        public static AiProviderProfile MistralTemplate() => new AiProviderProfile
+        {
+            Name = "Mistral", Kind = AiProviderKind.OpenAiCompatible,
+            BaseUrl = "https://api.mistral.ai/v1", Model = "mistral-small-latest"
+        };
+
+        /// <summary>Local Ollama - no API key required, runs entirely on this machine.</summary>
+        public static AiProviderProfile OllamaTemplate() => new AiProviderProfile
+        {
+            Name = "Ollama (local)", Kind = AiProviderKind.OpenAiCompatible,
+            BaseUrl = "http://localhost:11434/v1", Model = "llama3.1"
+        };
+
+        /// <summary>Blank OpenAI-compatible profile - works with ANY provider that speaks /chat/completions.</summary>
+        public static AiProviderProfile CustomTemplate() => new AiProviderProfile
+        {
+            Name = "Custom provider", Kind = AiProviderKind.OpenAiCompatible
+        };
     }
 }

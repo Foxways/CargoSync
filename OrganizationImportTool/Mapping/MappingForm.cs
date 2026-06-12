@@ -120,6 +120,12 @@ namespace OrganizationImportTool.Mapping
             var saveTpl = GunaUi.Button("Save Template", primary: false); saveTpl.Size = new Size(130, 36); saveTpl.Click += SaveTemplate_Click;
             var loadTpl = GunaUi.Button("Load Template", primary: false); loadTpl.Size = new Size(130, 36); loadTpl.Click += LoadTemplate_Click;
             var copilotBtn = GunaUi.Button("✨ Copilot", primary: false); copilotBtn.Size = new Size(120, 36); copilotBtn.Click += CopilotBtn_Click;
+            if (_aiRouter == null || !_aiRouter.IsConfigured)
+            {
+                // Styled-disabled (still clickable so the tooltip can explain why) - AI is off.
+                copilotBtn.ForeColor = AppleTheme.TextSecondary;
+                copilotBtn.FillColor = Color.FromArgb(34, 34, 40);
+            }
             var leftFlow = new FlowLayoutPanel { Dock = DockStyle.Left, FlowDirection = FlowDirection.LeftToRight, AutoSize = true, WrapContents = false, BackColor = Color.Transparent };
             leftFlow.Controls.Add(saveTpl);
             leftFlow.Controls.Add(loadTpl);
@@ -769,9 +775,13 @@ namespace OrganizationImportTool.Mapping
 
             if (_aiRouter == null || !_aiRouter.IsConfigured)
             {
-                MessageBox.Show(this,
-                    "AI isn't configured yet. Add a provider in AI Settings to chat with the Copilot.",
-                    "Copilot", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                // Passive hint instead of a modal error - AI off must never feel like a fault.
+                if (sender is Control btn)
+                {
+                    var tip = new ToolTip();
+                    tip.Show("AI is turned off — enable it from the AI chip or AI Settings on the main screen.",
+                        btn, 0, -40, 3000);
+                }
                 return;
             }
             using var f = new CopilotForm(_aiRouter, _contract, _table, _result);

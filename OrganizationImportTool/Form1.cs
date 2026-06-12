@@ -33,6 +33,7 @@ namespace OrganizationImportTool
         private SQLiteConnection conn;
         private Guna2ComboBox clientBox;
         private Guna2Button browseBtn, uploadBtn, dryRunBtn, addClientBtn, cancelBtn, aiSettingsBtn, pauseBtn, cwSyncBtn; // Add a button to open Form2
+        private AiStatusChip aiChip;
         private Guna2TextBox filePathBox;
         private volatile bool _paused;
         private volatile bool _running; // true while an import/dry-run loop is in flight (reentrancy guard)
@@ -84,12 +85,36 @@ namespace OrganizationImportTool
             {
                 _aiSettings = AiSettings.Load();
                 _aiUsage = new TokenUsageStore { Persist = _aiSettings.SaveTokenHistory };
-                _aiRouter = new AiRouter(_aiSettings, _aiUsage);
+                RebuildAiRouter();
                 // Apply retention at startup: trim old logs + old token history.
                 LogRetention.ApplyAll(_aiSettings.LogRetentionDays);
                 _aiUsage.PurgeOlderThan(_aiSettings.TokenHistoryRetentionDays);
             }
             catch (Exception ex) { Logging.AppLog.Warn("AI initialization failed - continuing without AI", ex); }
+        }
+
+        /// <summary>(Re)create the AI router from the current settings and re-bind the header chip.</summary>
+        private void RebuildAiRouter()
+        {
+            _aiRouter = new AiRouter(_aiSettings, _aiUsage);
+            aiChip?.Bind(_aiSettings, _aiRouter);
+        }
+
+        /// <summary>One-click AI on/off from the header chip - everything works either way.</summary>
+        private void ToggleAi()
+        {
+            try
+            {
+                _aiSettings.Enabled = !_aiSettings.Enabled;
+                _aiSettings.Save();
+                RebuildAiRouter();
+            }
+            catch (Exception ex)
+            {
+                Logging.AppLog.Warn("AI toggle failed", ex);
+                MessageBox.Show(this, "Could not change the AI setting: " + ex.Message, "CargoSync",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         }
 
         private void InitializeDatabase()
@@ -138,16 +163,21 @@ namespace OrganizationImportTool
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));   // footer
 
             // ---- Header bar ----
-            var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1, BackColor = Color.Transparent, Margin = new Padding(0) };
+            var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, BackColor = Color.Transparent, Margin = new Padding(0) };
             header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));      // AI status chip
             header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
             var titleLbl = new Label { Text = "CargoSync", Dock = DockStyle.Fill, Font = AppleTheme.Title, ForeColor = AppleTheme.TextPrimary, TextAlign = ContentAlignment.MiddleLeft };
+            aiChip = new AiStatusChip();
+            aiChip.ToggleRequested += ToggleAi;
+            aiChip.OpenSettingsRequested += () => AiSettingsBtn_Click(this, EventArgs.Empty);
             aiSettingsBtn = GunaButton("⚙   AI Settings", primary: true);
             aiSettingsBtn.Dock = DockStyle.Fill;
             aiSettingsBtn.Margin = new Padding(0, 8, 0, 8);
             aiSettingsBtn.Click += AiSettingsBtn_Click;
             header.Controls.Add(titleLbl, 0, 0);
-            header.Controls.Add(aiSettingsBtn, 1, 0);
+            header.Controls.Add(aiChip, 1, 0);
+            header.Controls.Add(aiSettingsBtn, 2, 0);
 
             // ---- Input card ----
             var inputCard = GunaCard();
@@ -429,7 +459,7 @@ namespace OrganizationImportTool
                 using var form = new AiSettingsForm(_aiSettings, _aiUsage);
                 form.ShowDialog(this);
                 // settings instance is mutated in place; rebuild the router so changes take effect
-                _aiRouter = new AiRouter(_aiSettings, _aiUsage);
+                RebuildAiRouter();
             }
             catch (Exception ex)
             {

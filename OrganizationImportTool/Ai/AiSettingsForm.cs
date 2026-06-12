@@ -61,22 +61,39 @@ namespace OrganizationImportTool.Ai
             WindowState = FormWindowState.Maximized;
             AppleTheme.ApplyWindow(this);
 
+            // Header: title on the left, master toggle docked right (no magic pixel offsets, so it
+            // stays put at any window width/DPI), and a one-line privacy note underneath.
+            var header = new Panel { Dock = DockStyle.Top, Height = 84, BackColor = AppleTheme.Canvas };
             var title = new Label
             {
-                Text = "AI Brain",
-                Dock = DockStyle.Top,
-                Height = 52,
+                Text = "AI Assistance",
+                Dock = DockStyle.Fill,
                 Padding = new Padding(20, 14, 0, 0),
                 Font = AppleTheme.Title,
                 ForeColor = AppleTheme.TextPrimary
             };
 
             _chkAiEnabled = GunaUi.Check("Enable AI assistance");
-            _chkAiEnabled.Anchor = AnchorStyles.Top | AnchorStyles.Right;
-            _chkAiEnabled.Top = 18; _chkAiEnabled.Left = 730;
+            _chkAiEnabled.AutoSize = true;
             _chkAiEnabled.Font = AppleTheme.Headline;
             _chkAiEnabled.ForeColor = AppleTheme.Accent;
-            title.Controls.Add(_chkAiEnabled);
+            var togglePanel = new Panel { Dock = DockStyle.Right, Width = 260, BackColor = Color.Transparent, Padding = new Padding(0, 18, 20, 0) };
+            _chkAiEnabled.Dock = DockStyle.Top;
+            togglePanel.Controls.Add(_chkAiEnabled);
+
+            var privacyNote = new Label
+            {
+                Text = "Privacy: when AI is on, column names and sample values from your file are sent to the selected provider. " +
+                       "Turn AI off any time — every feature still works without it.",
+                Dock = DockStyle.Bottom,
+                Height = 34,
+                Padding = new Padding(22, 0, 12, 4),
+                Font = AppleTheme.Caption,
+                ForeColor = AppleTheme.TextSecondary
+            };
+            header.Controls.Add(title);
+            header.Controls.Add(togglePanel);
+            header.Controls.Add(privacyNote);
 
             var tabs = new GunaTabs { Dock = DockStyle.Fill };
             tabs.AddTab("Providers & Fallback", BuildProvidersPanel());
@@ -101,7 +118,7 @@ namespace OrganizationImportTool.Ai
 
             Controls.Add(tabs);
             Controls.Add(footer);
-            Controls.Add(title);
+            Controls.Add(header);
             FormAnimator.FadeIn(this);
         }
 
@@ -126,10 +143,25 @@ namespace OrganizationImportTool.Ai
             _list.DrawItem += List_DrawItem;
             _list.SelectedIndexChanged += (s, e) => LoadEditor();
 
-            var addOpenAi = MakeMiniButton("+ OpenAI");
-            var addRouter = MakeMiniButton("+ Router");
-            var addClaude = MakeMiniButton("+ Claude");
-            var addCustom = MakeMiniButton("+ Custom");
+            // One "Add Provider" menu instead of per-vendor buttons - ANY provider is a template away,
+            // and anything OpenAI-compatible (most of the market + local Ollama) works via Custom.
+            var addBtn = MakeMiniButton("+ Add Provider ▾");
+            addBtn.Width = 262;
+            var addMenu = new ContextMenuStrip();
+            void MenuItem(string label, Func<AiProviderProfile> template) =>
+                addMenu.Items.Add(label, null, (s, e) => AddProvider(template()));
+            MenuItem("OpenAI", AiProviderProfile.OpenAiTemplate);
+            MenuItem("OpenRouter (free tier available)", AiProviderProfile.OpenRouterTemplate);
+            MenuItem("Anthropic (Claude)", AiProviderProfile.AnthropicTemplate);
+            MenuItem("Google Gemini", AiProviderProfile.GeminiTemplate);
+            MenuItem("Groq", AiProviderProfile.GroqTemplate);
+            MenuItem("DeepSeek", AiProviderProfile.DeepSeekTemplate);
+            MenuItem("Mistral", AiProviderProfile.MistralTemplate);
+            MenuItem("Ollama (local, no API key)", AiProviderProfile.OllamaTemplate);
+            addMenu.Items.Add(new ToolStripSeparator());
+            MenuItem("Custom (any OpenAI-compatible URL)…", AiProviderProfile.CustomTemplate);
+            addBtn.Click += (s, e) => addMenu.Show(addBtn, new Point(0, addBtn.Height));
+
             var up = MakeMiniButton("↑ Up");
             var down = MakeMiniButton("↓ Down");
             var remove = MakeMiniButton("✕ Delete");
@@ -137,14 +169,10 @@ namespace OrganizationImportTool.Ai
             remove.ForeColor = Color.White;
             remove.HoverState.FillColor = Color.FromArgb(220, 50, 45);
             remove.Width = 262; // full-width delete row for clarity
-            addOpenAi.Click += (s, e) => AddProvider(AiProviderProfile.OpenAiTemplate());
-            addRouter.Click += (s, e) => AddProvider(AiProviderProfile.OpenRouterTemplate());
-            addClaude.Click += (s, e) => AddProvider(AiProviderProfile.AnthropicTemplate());
-            addCustom.Click += (s, e) => AddProvider(new AiProviderProfile());
             up.Click += (s, e) => Move(-1);
             down.Click += (s, e) => Move(1);
             remove.Click += (s, e) => RemoveSelected();
-            listBtns.Controls.AddRange(new Control[] { addOpenAi, addRouter, addClaude, addCustom, up, down, remove });
+            listBtns.Controls.AddRange(new Control[] { addBtn, up, down, remove });
 
             leftCard.Controls.Add(_list);     // Fill - add last so it fills remaining
             leftCard.Controls.Add(listBtns);
