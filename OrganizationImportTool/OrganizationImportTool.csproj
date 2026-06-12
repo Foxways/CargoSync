@@ -61,6 +61,11 @@
     <None Update="appicon.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <!-- Local-only default AI key (gitignored). Present on the build machine = AI works
+         out-of-the-box in that build; absent (e.g. a fresh clone) = users set up AI manually. -->
+    <None Update="openrouter-default.key" Condition="Exists('openrouter-default.key')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

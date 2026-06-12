@@ -13,3 +13,6 @@ Installer/Output/
 
 # Local Claude settings
 **/.claude/settings.local.json
+
+# Local-only default AI key (never commit; the app reads it from beside the exe)
+openrouter-default.key

@@ -14,23 +14,31 @@ namespace OrganizationImportTool.Ai
     ///   * Only runs when no ai-settings.json exists yet (first launch). It NEVER overwrites a
     ///     user's own configuration - once a user opens AI Settings and saves their own key/model,
     ///     that file exists and this seeder stays out of the way forever.
-    ///   * The default key is stored base64-encoded (not as a raw plaintext literal). This is light
-    ///     obfuscation only - it is NOT real security. Anyone with the installed files can recover
-    ///     it, so this should always be a free-tier / spend-capped OpenRouter key.
+    ///   * The default key is NOT stored in source (this repo is public). It is read at runtime
+    ///     from the CARGOSYNC_DEFAULT_OPENROUTER_KEY environment variable or from an
+    ///     "openrouter-default.key" file next to the executable - the build/installer machine
+    ///     drops that file in locally (it is gitignored). No file = no seeding; users simply
+    ///     configure AI themselves in AI Settings. Always use a free-tier / spend-capped key.
     /// </summary>
     internal static class DefaultAiConfig
     {
-        // Base64 of the default OpenRouter API key (sk-or-v1-...). Decoded at runtime.
-        // To change the bundled default, replace this string with the base64 of a new key.
-        private const string DefaultKeyB64 =
-            "KEY-REMOVED-FROM-HISTORY";
+        private const string KeyFileName = "openrouter-default.key";
+        private const string KeyEnvVar = "CARGOSYNC_DEFAULT_OPENROUTER_KEY";
 
         private const string DefaultModel = "openai/gpt-oss-120b:free";
 
         private static string DecodeKey()
         {
-            try { return Encoding.UTF8.GetString(Convert.FromBase64String(DefaultKeyB64)); }
-            catch { return string.Empty; }
+            try
+            {
+                string env = Environment.GetEnvironmentVariable(KeyEnvVar) ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(env)) return env.Trim();
+
+                string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, KeyFileName);
+                if (File.Exists(path)) return File.ReadAllText(path).Trim();
+            }
+            catch (Exception ex) { Logging.AppLog.Warn("Default AI key lookup failed", ex); }
+            return string.Empty;
         }
 
         /// <summary>
