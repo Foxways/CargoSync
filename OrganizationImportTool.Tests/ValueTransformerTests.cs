@@ -45,36 +45,30 @@ namespace OrganizationImportTool.Tests
         [Theory]
         [InlineData("42", "42")]
         [InlineData("-7", "-7")]
-        [InlineData("1,000", "1000")]
+        [InlineData("1,000", "1000")]      // US thousands
+        [InlineData("1.234.567", "1234567")] // EU thousands
+        [InlineData("2.0", "2")]            // integral decimal is fine for an int field
         public void Integer_parses_plain_and_thousands(string raw, string expected)
             => Assert.Equal(expected, ValueTransformer.Integer(raw));
 
-        [Fact]
-        public void Integer_returns_null_for_non_numeric()
-            => Assert.Null(ValueTransformer.Integer("abc"));
-
-        [Fact]
-        public void Integer_decimal_point_CURRENT_BEHAVIOR_strips_separator()
-        {
-            // KNOWN BUG (fixed in F5): "1.5" should be rejected or rounded, not become 15.
-            Assert.Equal("15", ValueTransformer.Integer("1.5"));
-        }
+        [Theory]
+        [InlineData("abc")]
+        [InlineData("1.5")]   // fractional value must NOT silently become 15
+        [InlineData("1,5")]
+        public void Integer_rejects_non_integral_values(string raw)
+            => Assert.Null(ValueTransformer.Integer(raw));
 
         [Theory]
         [InlineData("1.25", "1.25")]
         [InlineData("-3.5", "-3.5")]
         [InlineData("100", "100")]
-        public void Decimal_parses_invariant_values(string raw, string expected)
+        [InlineData("1,5", "1.5")]           // European decimal comma
+        [InlineData("1.234,56", "1234.56")]  // EU thousands + decimal comma
+        [InlineData("1,234.56", "1234.56")]  // US thousands + decimal point
+        [InlineData("1,000", "1000")]        // lone comma w/ 3 digits = thousands
+        [InlineData("0.125", "0.125")]       // single dot stays a decimal point
+        public void Decimal_handles_both_locale_conventions(string raw, string expected)
             => Assert.Equal(expected, ValueTransformer.Decimal(raw));
-
-        [Fact]
-        public void Decimal_comma_separator_CURRENT_BEHAVIOR_strips_comma()
-        {
-            // KNOWN BUG (fixed in F5): European "1,5" should be 1.5, not 15.
-            Assert.Equal("15", ValueTransformer.Decimal("1,5"));
-            // KNOWN BUG (fixed in F5): "1.234,56" should be 1234.56, not 1.23456.
-            Assert.Equal("1.23456", ValueTransformer.Decimal("1.234,56"));
-        }
 
         [Fact]
         public void Coerce_truncates_strings_to_max_length()

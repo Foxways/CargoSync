@@ -55,16 +55,53 @@ namespace OrganizationImportTool.Transform
 
         public static string? Integer(string raw)
         {
-            string cleaned = new string(raw.Where(c => char.IsDigit(c) || c == '-').ToArray());
-            return long.TryParse(cleaned, NumberStyles.Integer, CultureInfo.InvariantCulture, out var n)
-                ? n.ToString(CultureInfo.InvariantCulture) : null;
+            string cleaned = NormalizeNumber(raw);
+            if (!decimal.TryParse(cleaned, NumberStyles.Number, CultureInfo.InvariantCulture, out var d))
+                return null;
+            // An int field must receive an integral value; "1.5" passes through untouched
+            // (Coerce falls back to the raw text) rather than silently becoming 15.
+            return d == decimal.Truncate(d) ? ((long)d).ToString(CultureInfo.InvariantCulture) : null;
         }
 
         public static string? Decimal(string raw)
         {
-            string cleaned = new string(raw.Where(c => char.IsDigit(c) || c == '.' || c == '-').ToArray());
+            string cleaned = NormalizeNumber(raw);
             return decimal.TryParse(cleaned, NumberStyles.Number, CultureInfo.InvariantCulture, out var d)
                 ? d.ToString(CultureInfo.InvariantCulture) : null;
+        }
+
+        /// <summary>
+        /// Make "1,5", "1.234,56", "1,234.56" and "1.234.567" all parse correctly regardless of
+        /// the file's locale: when both separators appear the RIGHTMOST one is the decimal point;
+        /// a lone comma with 1-2 trailing digits is a decimal comma, otherwise a thousands group;
+        /// repeated dots are thousands groups.
+        /// </summary>
+        private static string NormalizeNumber(string raw)
+        {
+            string s = new string(raw.Where(c => char.IsDigit(c) || c == '.' || c == ',' || c == '-').ToArray());
+            bool hasDot = s.Contains('.'), hasComma = s.Contains(',');
+
+            if (hasDot && hasComma)
+            {
+                char dec = s.LastIndexOf('.') > s.LastIndexOf(',') ? '.' : ',';
+                char thousands = dec == '.' ? ',' : '.';
+                s = s.Replace(thousands.ToString(), string.Empty);
+                if (dec == ',') s = s.Replace(',', '.');
+            }
+            else if (hasComma)
+            {
+                int last = s.LastIndexOf(',');
+                bool single = s.IndexOf(',') == last;
+                int trailing = s.Length - last - 1;
+                s = single && trailing is >= 1 and <= 2
+                    ? s.Replace(',', '.')                  // European decimal comma: 1,5 -> 1.5
+                    : s.Replace(",", string.Empty);        // thousands: 1,000 -> 1000
+            }
+            else if (hasDot && s.IndexOf('.') != s.LastIndexOf('.'))
+            {
+                s = s.Replace(".", string.Empty);          // repeated dots = thousands: 1.234.567
+            }
+            return s;
         }
     }
 }
