@@ -1028,11 +1028,14 @@ namespace OrganizationImportTool
                 Console.WriteLine("auth correct : " + (store.Authenticate("alice", "secret123") != null));
                 Console.WriteLine("auth wrong   : rejected=" + (store.Authenticate("alice", "wrongpw") == null));
                 Console.WriteLine("hint         : " + store.GetHint("alice"));
-                Console.WriteLine("reset pw     : " + (store.ResetPassword("alice", "newpass1") ?? "OK"));
+                Console.WriteLine("change pw    : " + (store.ChangePassword("alice", "secret123", "newpass1") ?? "OK"));
                 Console.WriteLine("old pw fails : " + (store.Authenticate("alice", "secret123") == null));
                 Console.WriteLine("new pw works : " + (store.Authenticate("alice", "newpass1") != null));
+                Console.WriteLine("bad-old-pw   : rejected=" + (store.ChangePassword("alice", "WRONG", "x12345") != null));
+                Console.WriteLine("first=admin  : " + (store.Authenticate("alice", "newpass1")!.IsAdmin));
+                Console.WriteLine("admin reset  : " + (store.AdminResetPassword("alice", "newpass1", "alice", "adminset1") ?? "OK"));
 
-                var u = store.Authenticate("alice", "newpass1")!;
+                var u = store.Authenticate("alice", "adminset1")!;
                 var act = new Auth.ActivityStore(db);
                 act.Record(u.Id, u.Username, "my cargowise", "sample_organizations.csv", 3, 3, 0, 0);
                 var recent = act.Recent(5);

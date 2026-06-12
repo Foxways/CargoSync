@@ -120,13 +120,27 @@ namespace OrganizationImportTool.Auth
             try
             {
                 SetBusy(true);
-                var authTask = Task.Run(() => _store.Authenticate(u, p));
+                var authTask = Task.Run(() => _store.AuthenticateDetailed(u, p));
                 await Task.WhenAll(authTask, Task.Delay(650)); // keep the spinner visible briefly
-                var user = authTask.Result;
+                var auth = authTask.Result;
 
-                if (user == null) { SetBusy(false); ShowError("Incorrect username or password."); return; }
+                if (auth.Locked)
+                {
+                    SetBusy(false);
+                    int mins = Math.Max(1, (int)Math.Ceiling(auth.LockRemaining.TotalMinutes));
+                    ShowError($"Too many wrong passwords — this account is locked. Try again in {mins} minute(s).");
+                    return;
+                }
+                if (auth.User == null)
+                {
+                    SetBusy(false);
+                    ShowError(auth.AttemptsRemaining is > 0 and <= 2
+                        ? $"Incorrect username or password. {auth.AttemptsRemaining} attempt(s) left before a 15-minute lock."
+                        : "Incorrect username or password.");
+                    return;
+                }
 
-                AuthenticatedUser = user;
+                AuthenticatedUser = auth.User;
                 Close();
             }
             catch (Exception ex)
