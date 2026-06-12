@@ -52,7 +52,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="data.db">
+    <!-- Local-only seed DB (gitignored - may hold client/eAdaptor credentials). When absent
+         (e.g. a fresh clone) the app creates an empty schema on first run. -->
+    <None Update="data.db" Condition="Exists('data.db')">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Update="Mapping\CargoWiseOrganizationFields.json">

@@ -249,15 +249,16 @@ namespace OrganizationImportTool
     /// <summary>Console verification of the build+send pipeline against a real eAdaptor.</summary>
     internal static class SelfTest
     {
-        /// <summary>Seed/refresh the "my cargowise" TST client in data.db. Idempotent.</summary>
+        /// <summary>Seed/refresh a test client in data.db. Idempotent.
+        /// Usage: --addclient &lt;password&gt; [name] [eAdaptorUrl] [senderId]</summary>
         public static int AddClient(string[] args)
         {
             try
             {
-                string name = "my cargowise";
-                string url = "https://your-cargowise-host/eAdaptor";
-                string user = "sender-id";
                 string pass = args.Length > 1 ? args[1] : "";
+                string name = args.Length > 2 ? args[2] : "Test Client";
+                string url  = args.Length > 3 ? args[3] : "https://your-cargowise-host/eAdaptor";
+                string user = args.Length > 4 ? args[4] : "sender-id";
                 string logPath = AppPaths.LogsDir;
 
                 string dbPath = AppPaths.DbPath;
