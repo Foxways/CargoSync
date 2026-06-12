@@ -1,0 +1,18 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - name: Build
+        run: dotnet build OrganizationImportTool.sln --nologo
+      - name: Test
+        run: dotnet test OrganizationImportTool.Tests/OrganizationImportTool.Tests.csproj --no-build --nologo
