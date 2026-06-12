@@ -47,7 +47,7 @@ namespace OrganizationImportTool
       
         public TextBox logBox;
         public Guna2ProgressBar progressBar;
-        private Guna2WinProgressIndicator _busySpinner;
+        private Spinner _busySpinner;
         private Label footerLabel;
         private string selectedFilePath = string.Empty;
         // Add a CancellationTokenSource to manage cancellation
@@ -291,7 +291,7 @@ namespace OrganizationImportTool
             root.Controls.Add(footerLabel, 0, 4);
             this.Controls.Add(root);
 
-            _busySpinner = new Guna2WinProgressIndicator { Size = new Size(30, 30), Visible = false, ProgressColor = AppleTheme.Accent };
+            _busySpinner = new Spinner { Size = new Size(30, 30), Visible = false };
             this.Controls.Add(_busySpinner);
             _busySpinner.BringToFront();
             void PosSpinner() => _busySpinner.Location = new Point(ClientSize.Width - _busySpinner.Width - 28, ClientSize.Height - _busySpinner.Height - 36);

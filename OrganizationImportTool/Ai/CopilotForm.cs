@@ -24,7 +24,7 @@ namespace OrganizationImportTool.Ai
         private RichTextBox _transcript = null!;
         private Guna2TextBox _input = null!;
         private Guna2Button _send = null!;
-        private Guna2WinProgressIndicator _spinner = null!;
+        private Spinner _spinner = null!;
         private bool _busy;
 
         public CopilotForm(AiRouter router, FieldContract contract, SourceTable table, MappingResult result)
@@ -68,17 +68,19 @@ namespace OrganizationImportTool.Ai
             foreach (var s in new[] { "Explain mapping", "What's risky?", "Suggest a rule", "Unmapped?" })
                 chips.Controls.Add(Chip(s));
 
-            // Input row as a 2-column table → a guaranteed gap between the text box and Send.
-            var inputPanel = new TableLayoutPanel { Dock = DockStyle.Fill, BackColor = AppleTheme.Canvas, Padding = new Padding(14, 8, 14, 14), ColumnCount = 2, RowCount = 1 };
+            // Input row as a 3-column table → text box | spinner | Send, with guaranteed gaps.
+            var inputPanel = new TableLayoutPanel { Dock = DockStyle.Fill, BackColor = AppleTheme.Canvas, Padding = new Padding(14, 8, 14, 14), ColumnCount = 3, RowCount = 1 };
             inputPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
+            inputPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 38));
             inputPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 112));
             _input = GunaUi.TextBox("Ask the copilot…");
-            _input.Dock = DockStyle.Fill; _input.Multiline = true; _input.Margin = new Padding(0, 0, 12, 0);   // 12px gap before the Send column
+            _input.Dock = DockStyle.Fill; _input.Multiline = true; _input.Margin = new Padding(0, 0, 8, 0);
             _input.KeyDown += Input_KeyDown;
             _send = GunaUi.Button("Send", primary: true); _send.Dock = DockStyle.Fill; _send.Margin = new Padding(0); _send.Click += async (s, e) => await SendAsync();
-            _spinner = new Guna2WinProgressIndicator { Size = new Size(26, 26), Visible = false, ProgressColor = AppleTheme.Accent };  // toggled in SetBusy ("…" on Send also shows busy)
+            _spinner = new Spinner { Size = new Size(26, 26), Visible = false, Anchor = AnchorStyles.None };   // centered next to Send while the copilot thinks
             inputPanel.Controls.Add(_input, 0, 0);
-            inputPanel.Controls.Add(_send, 1, 0);
+            inputPanel.Controls.Add(_spinner, 1, 0);
+            inputPanel.Controls.Add(_send, 2, 0);
 
             root.Controls.Add(header, 0, 0);
             root.Controls.Add(_transcript, 0, 1);

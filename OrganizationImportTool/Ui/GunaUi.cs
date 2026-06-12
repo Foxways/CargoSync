@@ -10,6 +10,9 @@ namespace OrganizationImportTool.Ui
     /// </summary>
     public static class GunaUi
     {
+        /// <summary>The app's standard loading spinner (hidden until Start()).</summary>
+        public static Spinner Spinner(int size = 28) => new Spinner { Size = new Size(size, size), Visible = false };
+
         public static Guna2Button Button(string text, bool primary)
         {
             var b = new Guna2Button

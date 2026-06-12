@@ -14,7 +14,7 @@ namespace OrganizationImportTool.Auth
         private Guna2TextBox _user = null!, _pass = null!;
         private Label _error = null!;
         private Guna2Button _loginBtn = null!;
-        private Guna2WinProgressIndicator _spinner = null!;
+        private Spinner _spinner = null!;
 
         public User? AuthenticatedUser { get; private set; }
 
@@ -60,7 +60,7 @@ namespace OrganizationImportTool.Auth
             _loginBtn = GunaUi.Button("Sign in", primary: true); _loginBtn.Dock = DockStyle.Top; _loginBtn.Height = 44; _loginBtn.Click += Login_Click;
             var loginBtn = _loginBtn;
 
-            _spinner = new Guna2WinProgressIndicator { Size = new Size(36, 36), Visible = false, ProgressColor = AppleTheme.Accent };
+            _spinner = new Spinner { Size = new Size(36, 36), Visible = false };
 
             var links = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 44, FlowDirection = FlowDirection.LeftToRight, BackColor = Color.Transparent, Padding = new Padding(0, 10, 0, 0) };
             var create = LinkButton("Create account"); create.Click += (s, e) => OpenCreate();
