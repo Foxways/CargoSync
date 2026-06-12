@@ -77,18 +77,21 @@ namespace OrganizationImportTool.Pipeline
         private readonly SourceReaderFactory _reader;
         private readonly TemplateStore _templates;
         private readonly FeedbackStore _feedback;
+        private readonly RejectionMemory _rejections;
         private readonly AiRouter? _ai;
         private readonly AiSettings _aiSettings;
         private readonly IEadaptorClient _client;
         private readonly IPipelineUi _ui;
 
         public ImportPipeline(FieldContract contract, SourceReaderFactory reader, TemplateStore templates,
-            FeedbackStore feedback, AiRouter? ai, AiSettings aiSettings, IEadaptorClient client, IPipelineUi ui)
+            FeedbackStore feedback, AiRouter? ai, AiSettings aiSettings, IEadaptorClient client, IPipelineUi ui,
+            RejectionMemory? rejections = null)
         {
             _contract = contract;
             _reader = reader;
             _templates = templates;
             _feedback = feedback;
+            _rejections = rejections ?? new RejectionMemory();
             _ai = ai;
             _aiSettings = aiSettings;
             _client = client;
@@ -301,6 +304,36 @@ namespace OrganizationImportTool.Pipeline
                     var report = new DataProfiler().Profile(rowValues, _contract, duplicateRowCount, cleaningPreviewCount, alreadySynced);
                     _ui.Log($"Profile: {report.RowCount} rows, risk {report.Level} (score {report.Score}/100).");
                     importLog?.Note($"Profile: risk {report.Level} score {report.Score}; blocking {report.BlockingRows}, dupes {report.DuplicateRows}, warnings {report.WarningRows}.");
+
+                    // Lessons learned: CargoWise rejections from PREVIOUS imports for this client,
+                    // checked against THIS file so the operator can fix repeats before sending.
+                    try
+                    {
+                        var lessons = _rejections.ForClient(req.ClientId);
+                        if (lessons.Count > 0)
+                        {
+                            _ui.Log($"Lessons learned: checking this file against {lessons.Count} past rejection reason(s) for this client.");
+                            foreach (var lesson in lessons)
+                            {
+                                string line = $"Lesson from previous imports: CargoWise rejected {lesson.Count} org(s) with \"{lesson.SampleMessage}\"";
+                                if (lesson.Signature.Contains("unloco") || lesson.Signature.Contains("closest port"))
+                                {
+                                    int missing = rowValues.Count(rv => !rv.Values.TryGetValue("orgHeader.closestPort.code", out var cp) || string.IsNullOrWhiteSpace(cp));
+                                    if (missing > 0) line += $" — {missing} row(s) in THIS file have no Closest Port yet (CargoSync will try to derive it).";
+                                }
+                                else if (lesson.Signature.Contains("country"))
+                                {
+                                    int missing = rowValues.Count(rv => !rv.Values.TryGetValue("orgAddressCollection[].countryCode.code", out var cc2) || string.IsNullOrWhiteSpace(cc2));
+                                    if (missing > 0) line += $" — {missing} row(s) in THIS file have no Country.";
+                                }
+                                report.Factors.Add(line);
+                                importLog?.Note(line);
+                                _ui.Log("  • " + line);
+                            }
+                        }
+                    }
+                    catch (Exception lex) { AppLog.Warn("Lessons-learned check failed", lex); }
+
                     if (!await _ui.ConfirmProfileAsync(report))
                     {
                         _ui.Log("Import cancelled at data profile. Nothing was sent.");
@@ -565,6 +598,11 @@ namespace OrganizationImportTool.Pipeline
                         Logger.LogSuccess($"{code} -> {resp.Outcome} ({resp.LocalCode}) msg {resp.MessageNumber}");
                     else
                         Logger.LogFailure($"{code} -> {resp.Status}: {resp.Error}");
+
+                    // Learn from the mistake: remember CargoWise DATA rejections (not transport
+                    // hiccups) so the next import for this client is warned about repeats up front.
+                    if (resp.TransportOk && !resp.IsSuccess && !resp.IsWarning)
+                        _rejections.Record(req.ClientId, resp.Error ?? resp.ProcessingLog, code);
 
                     importLog?.Row(counter, outcome, warnList);
                     _ui.Log($"  [{counter}] {code}: {resp.Status} - {resp.Outcome}");

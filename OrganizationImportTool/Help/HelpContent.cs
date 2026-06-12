@@ -162,7 +162,10 @@ Every time you confirm a mapping, CargoSync remembers it FOR THAT CLIENT. Next f
 ## Templates (manual)
 On the mapping screen, Save Template stores the complete setup — column mappings, constants, rules and value maps — under a name. Load Template applies it to a new file. Templates can be per-client or global.
 
-Use templates when you juggle several distinct file layouts; rely on self-learning for the everyday case."),
+Use templates when you juggle several distinct file layouts; rely on self-learning for the everyday case.
+
+## Learning from mistakes
+CargoSync also remembers every reason CargoWise REJECTED an organization, per client. Before the next import it checks the new file against those past rejections and warns you in the pre-flight data health check (e.g. ""last time 3 orgs were rejected for a missing port — 2 rows in this file have the same gap""). A small notification also appears when you pick a client that has lessons on record — quiet, never blocking."),
 
             new("rules-valuemaps", "Rules & Value Maps",
 @"## Rules (IF / THEN, no code)

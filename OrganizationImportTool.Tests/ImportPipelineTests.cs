@@ -114,7 +114,7 @@ namespace OrganizationImportTool.Tests
             var feedback = new FeedbackStore(_db.Path);
             var templates = new TemplateStore(_templateDir.Path);
             var pipeline = new ImportPipeline(TestData.Contract, new SourceReaderFactory(), templates,
-                feedback, ai, aiSettings ?? new AiSettings(), client, ui);
+                feedback, ai, aiSettings ?? new AiSettings(), client, ui, new RejectionMemory(_db.Path));
             return (pipeline, ui, client, feedback, templates);
         }
 
@@ -308,6 +308,46 @@ namespace OrganizationImportTool.Tests
 
             Assert.NotNull(ui2.LastCrashDescription);
             Assert.Contains("stopped part-way", ui2.LastCrashDescription);
+        }
+
+        [Fact]
+        public async Task CargoWise_rejections_are_learned_and_surfaced_next_import()
+        {
+            WriteCsv("ACME001,Acme Imports,1 Test St,Sydney,AU",
+                     "BADORG01,Bad Org,2 Err St,Sydney,AU");
+
+            // Run 1: CargoWise rejects BADORG01.
+            var (p1, _, c1, _, _) = Build();
+            c1.FailCodes.Add("BADORG01");
+            var r1 = await p1.RunAsync(Request(_csv.Path), CancellationToken.None);
+            Assert.Equal(1, r1.Ok);
+
+            var memory = new RejectionMemory(_db.Path);
+            Assert.Equal(1, memory.CountForClient("TESTCLIENT"));
+            Assert.Contains("scripted failure", memory.ForClient("TESTCLIENT")[0].SampleMessage);
+
+            // Run 2 (same client, different file): the lesson is checked + surfaced pre-flight.
+            File.WriteAllLines(_csv.Path, new[]
+            {
+                "Account Code,Company Name,Street,Town,Country",
+                "NEWORG01,New Org,3 Ok St,Sydney,AU"
+            });
+            var (p2, ui2, _, _, _) = Build();
+            await p2.RunAsync(Request(_csv.Path), CancellationToken.None);
+
+            Assert.Contains(ui2.LogLines, l => l.Contains("Lessons learned"));
+            Assert.Contains(ui2.LogLines, l => l.Contains("scripted failure"));
+        }
+
+        [Fact]
+        public void Rejection_signatures_group_similar_messages()
+        {
+            Assert.Equal(
+                RejectionMemory.Normalize("Code 'ACME001' is too long (12 chars max)"),
+                RejectionMemory.Normalize("Code 'GLOBEX99' is too long (15 chars max)"));
+            Assert.NotEqual(
+                RejectionMemory.Normalize("UNLOCO required"),
+                RejectionMemory.Normalize("Country code invalid"));
         }
 
         [Fact]

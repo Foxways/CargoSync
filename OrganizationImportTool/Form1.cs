@@ -35,6 +35,7 @@ namespace OrganizationImportTool
         private Guna2Button browseBtn, uploadBtn, dryRunBtn, addClientBtn, cancelBtn, aiSettingsBtn, pauseBtn, cwSyncBtn; // Add a button to open Form2
         private AiStatusChip aiChip;
         private Panel _getStartedOverlay;
+        private readonly HashSet<string> _lessonToastShown = new(StringComparer.OrdinalIgnoreCase);
         private Guna2TextBox filePathBox;
         private volatile bool _paused;
         private volatile bool _running; // true while an import/dry-run loop is in flight (reentrancy guard)
@@ -639,6 +640,24 @@ namespace OrganizationImportTool
                         ? $"Will upload to: {environment}  (test environment)"
                         : $"Will upload to: {environment}";
                 environmentLabel.ForeColor = isLive ? AppleTheme.Warning : AppleTheme.Accent;
+
+                // Lessons learned: quiet heads-up (once per client per session) that earlier
+                // imports had CargoWise rejections; the pre-flight check covers the details.
+                try
+                {
+                    if (_lessonToastShown.Add(clientId))
+                    {
+                        var lessons = new RejectionMemory().ForClient(clientId, 3);
+                        if (lessons.Count > 0)
+                        {
+                            int total = lessons.Sum(l => l.Count);
+                            Toast.Show(this, "💡 CargoSync remembers past rejections",
+                                $"CargoWise rejected {total} org(s) in earlier imports for this client. " +
+                                "The pre-flight check will warn you if a new file repeats those mistakes.");
+                        }
+                    }
+                }
+                catch (Exception lex) { Logging.AppLog.Warn("Lesson toast failed", lex); }
             }
             else
             {
@@ -821,6 +840,18 @@ namespace OrganizationImportTool
                             "step-results");
                         preview.ShowDialog(this);
                     }
+
+                // Quiet learning note: CargoWise rejections were memorised for next time.
+                if (!dryRun && !result.Cancelled)
+                {
+                    int rejectedByCw = result.Outcomes.Count(o =>
+                        o.Response.TransportOk && !o.Response.IsSuccess && !o.Response.IsWarning && !o.Response.NotSent);
+                    if (rejectedByCw > 0)
+                        Toast.Show(this, "Lessons saved",
+                            $"{rejectedByCw} rejection reason(s) were memorised for this client. " +
+                            "CargoSync will warn you before the next import if the same problems appear again.",
+                            ToastKind.Warning);
+                }
             }
             catch (OperationCanceledException)
             {
