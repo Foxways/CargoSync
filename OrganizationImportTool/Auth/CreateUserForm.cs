@@ -26,7 +26,7 @@ namespace OrganizationImportTool.Auth
             Text = "Create account";
             ClientSize = new Size(440, 600);
             FormBorderStyle = FormBorderStyle.FixedDialog;
-            StartPosition = FormStartPosition.CenterScreen;
+            StartPosition = FormStartPosition.CenterParent; // centers over the sign-in window
             MaximizeBox = false; MinimizeBox = false;
             DoubleBuffered = true;
             AppleTheme.ApplyWindow(this);

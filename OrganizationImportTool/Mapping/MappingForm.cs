@@ -148,10 +148,10 @@ namespace OrganizationImportTool.Mapping
             {
                 Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4, BackColor = AppleTheme.Canvas
             };
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));   // header
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(40)));   // header
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));  // tabs (grid)
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 158));  // explainability panel
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 96));   // status + buttons
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(158)));  // explainability panel
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(96)));   // status + buttons
             header.Margin = tabs.Margin = explainPanel.Margin = bottom.Margin = new Padding(0);
             root.Controls.Add(header, 0, 0);
             root.Controls.Add(tabs, 0, 1);

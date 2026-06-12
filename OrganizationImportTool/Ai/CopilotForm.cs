@@ -42,13 +42,15 @@ namespace OrganizationImportTool.Ai
             MinimumSize = new Size(480, 520);
             StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.Sizable;
+            MinimizeBox = false;      // a minimized owned modal "vanishes" behind the main window
+            ShowInTaskbar = false;
             AppleTheme.ApplyWindow(this);
 
             var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 4, BackColor = AppleTheme.Canvas };
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 80));   // header
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(80)));   // header
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));  // transcript
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));   // suggestion chips (one row)
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 76));   // input
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(48)));   // suggestion chips (one row)
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(76)));   // input
 
             var header = new Panel { Dock = DockStyle.Fill, BackColor = AppleTheme.Canvas };
             var title = new Label { Text = "CargoSync Copilot ✨", Dock = DockStyle.Top, Height = 50, Padding = new Padding(16, 8, 0, 2), Font = AppleTheme.Title, ForeColor = AppleTheme.Accent, TextAlign = ContentAlignment.MiddleLeft };

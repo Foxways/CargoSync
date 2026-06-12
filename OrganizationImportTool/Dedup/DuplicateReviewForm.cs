@@ -43,6 +43,7 @@ namespace OrganizationImportTool.Dedup
             StartPosition = FormStartPosition.CenterParent;
             FormBorderStyle = FormBorderStyle.Sizable;
             MaximizeBox = true;
+            WindowState = FormWindowState.Maximized; // match the other review steps (no jarring small popup mid-flow)
             AppleTheme.ApplyWindow(this);
 
             int extras = _groups.Sum(g => g.Extras.Count());
@@ -57,7 +58,7 @@ namespace OrganizationImportTool.Dedup
             var desc = new Label
             {
                 Text = "These rows look like the same organization. Importing all of them can create or overwrite the same CargoWise org twice.",
-                Dock = DockStyle.Top, Height = 44, Padding = new Padding(22, 0, 16, 0),
+                Dock = DockStyle.Top, Height = LogicalToDeviceUnits(46), Padding = new Padding(22, 0, 16, 0),
                 Font = AppleTheme.Body, ForeColor = AppleTheme.TextSecondary
             };
             header.Controls.Add(desc);

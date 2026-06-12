@@ -39,7 +39,7 @@ namespace OrganizationImportTool
             this.Text = "Client & eAdaptor Setup";
             this.MinimumSize = new Size(940, 600);
             this.ClientSize = new Size(1040, 660);
-            this.StartPosition = FormStartPosition.CenterScreen;
+            this.StartPosition = FormStartPosition.CenterParent; // maximizes on the OWNER's monitor
             this.FormBorderStyle = FormBorderStyle.Sizable;
             this.MaximizeBox = true;
             this.DoubleBuffered = true;
@@ -156,7 +156,7 @@ namespace OrganizationImportTool
                 //||string.IsNullOrWhiteSpace(companyCodeBox.Text)
                 )
             {
-                MessageBox.Show("Please fill in all required fields.");
+                MessageBox.Show(this, "Please fill in all required fields.");
                 return;
             }
 
@@ -170,7 +170,7 @@ namespace OrganizationImportTool
                     var result = checkCmd.ExecuteScalar();
                     if (result != null)
                     {
-                        MessageBox.Show("Client name already exists. Please choose a different name.");
+                        MessageBox.Show(this, "Client name already exists. Please choose a different name.");
                         return;
                     }
                 }
@@ -199,11 +199,11 @@ namespace OrganizationImportTool
                 }
 
                 LoadGrid();
-                MessageBox.Show("Client saved successfully.");
+                MessageBox.Show(this, "Client saved successfully.");
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error saving client data: " + ex.Message);
+                MessageBox.Show(this, "Error saving client data: " + ex.Message);
             }
         }
 
@@ -212,7 +212,7 @@ namespace OrganizationImportTool
         {
             if (selectedAdaptorId == -1)
             {
-                MessageBox.Show("No entry selected for update.");
+                MessageBox.Show(this, "No entry selected for update.");
                 return;
             }
 
@@ -224,7 +224,7 @@ namespace OrganizationImportTool
                 string.IsNullOrWhiteSpace(logPathBox.Text) ||
                 string.IsNullOrWhiteSpace(enterpriseBox.Text))
             {
-                MessageBox.Show("Please fill in all required fields.");
+                MessageBox.Show(this, "Please fill in all required fields.");
                 return;
             }
 
@@ -242,7 +242,7 @@ namespace OrganizationImportTool
 
                 if (clientId == -1)
                 {
-                    MessageBox.Show("Client not found for selected adaptor.");
+                    MessageBox.Show(this, "Client not found for selected adaptor.");
                     return;
                 }
 
@@ -256,7 +256,7 @@ namespace OrganizationImportTool
 
                 if (currentClientName == null)
                 {
-                    MessageBox.Show("Client record missing.");
+                    MessageBox.Show(this, "Client record missing.");
                     return;
                 }
 
@@ -273,7 +273,7 @@ namespace OrganizationImportTool
 
                         if (duplicateResult != null)
                         {
-                            MessageBox.Show("A different client with this name already exists. Please choose another name.");
+                            MessageBox.Show(this, "A different client with this name already exists. Please choose another name.");
                             return;
                         }
                     }
@@ -306,11 +306,11 @@ namespace OrganizationImportTool
                 }
 
                 LoadGrid();
-                MessageBox.Show("Updated successfully.");
+                MessageBox.Show(this, "Updated successfully.");
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error updating data: " + ex.Message);
+                MessageBox.Show(this, "Error updating data: " + ex.Message);
             }
         }
 
@@ -355,7 +355,7 @@ namespace OrganizationImportTool
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error loading grid: " + ex.Message);
+                MessageBox.Show(this, "Error loading grid: " + ex.Message);
             }
         }
 
@@ -370,7 +370,7 @@ namespace OrganizationImportTool
             {
                 int id = Convert.ToInt32(row.Cells["Id"].Value);
 
-                DialogResult result = MessageBox.Show("Are you sure you want to delete this record and its associated client?", "Confirm Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+                DialogResult result = MessageBox.Show(this, "Are you sure you want to delete this record and its associated client?", "Confirm Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
                 if (result == DialogResult.Yes)
                 {
                     try
@@ -407,11 +407,11 @@ namespace OrganizationImportTool
                             selectedAdaptorId = -1;
 
                         LoadGrid();
-                        MessageBox.Show("Adaptor and client deleted successfully.", "Deleted", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        MessageBox.Show(this, "Adaptor and client deleted successfully.", "Deleted", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                     catch (Exception ex)
                     {
-                        MessageBox.Show("Error deleting data: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        MessageBox.Show(this, "Error deleting data: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                 }
             }
@@ -436,7 +436,7 @@ namespace OrganizationImportTool
         {
             using (var folderDialog = new FolderBrowserDialog())
             {
-                if (folderDialog.ShowDialog() == DialogResult.OK)
+                if (folderDialog.ShowDialog(this) == DialogResult.OK)
                 {
                     logPathBox.Text = folderDialog.SelectedPath;
                 }

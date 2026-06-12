@@ -43,9 +43,9 @@ namespace OrganizationImportTool.Profiling
             AppleTheme.ApplyWindow(this);
 
             var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 5, BackColor = AppleTheme.Canvas };
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 52));   // title
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 116));  // stat cards
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 178));  // risk factors
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(52)));   // title
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(116)));  // stat cards
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(178)));  // risk factors
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100f));  // field grid
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, 108));  // buttons (tall; pinned to top to clear the taskbar)
 

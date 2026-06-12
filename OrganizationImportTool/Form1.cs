@@ -156,11 +156,13 @@ namespace OrganizationImportTool
                 BackColor = AppleTheme.Canvas,
                 Padding = new Padding(20, 14, 20, 12)
             };
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 54));   // header
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 240));  // input card
-            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));   // log card
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));   // status + progress
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));   // footer
+            // Absolute row heights are in 96-DPI logical units - scale them so text rows
+            // (especially the footer) don't clip at 125%/150% display scaling.
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(54)));   // header
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(240)));  // input card
+            root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));                          // log card
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(48)));   // status + progress
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(26)));   // footer
 
             // ---- Header bar ----
             var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 1, BackColor = Color.Transparent, Margin = new Padding(0) };
@@ -395,7 +397,7 @@ namespace OrganizationImportTool
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error loading clients: " + ex.Message);
+                MessageBox.Show(this, "Error loading clients: " + ex.Message);
             }
             finally
             {
@@ -411,7 +413,7 @@ namespace OrganizationImportTool
             using (OpenFileDialog openFileDialog = new OpenFileDialog())
             {
                 openFileDialog.Filter = _readerFactory.FileDialogFilter;
-                if (openFileDialog.ShowDialog() == DialogResult.OK)
+                if (openFileDialog.ShowDialog(this) == DialogResult.OK)
                 {
                     filePathBox.Text = openFileDialog.FileName;
                     selectedFilePath = openFileDialog.FileName;  // Store the path
@@ -428,8 +430,8 @@ namespace OrganizationImportTool
         {
             try
             {
-                EAdaptorSetupForm addClientForm = new EAdaptorSetupForm();
-                addClientForm.ShowDialog(); // Waits until the form is closed
+                using var addClientForm = new EAdaptorSetupForm();
+                addClientForm.ShowDialog(this); // owned: opens on this monitor, never behind us
                 // Refresh the client list after closing the form
                 LoadClients();
                 clientId = string.Empty;
@@ -513,7 +515,7 @@ namespace OrganizationImportTool
 
         private void CancelBtn_Click(object sender, EventArgs e)
         {
-            var result = MessageBox.Show("Are you sure you want to stop the upload?",
+            var result = MessageBox.Show(this, "Are you sure you want to stop the upload?",
                                          "Stop Confirmation",
                                          MessageBoxButtons.YesNo,
                                          MessageBoxIcon.Warning);
@@ -567,7 +569,7 @@ namespace OrganizationImportTool
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error retrieving environment: " + ex.Message);
+                MessageBox.Show(this, "Error retrieving environment: " + ex.Message);
             }
             return environment;
         }
@@ -602,7 +604,7 @@ namespace OrganizationImportTool
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error retrieving EAdaptor details: " + ex.Message);
+                MessageBox.Show(this, "Error retrieving EAdaptor details: " + ex.Message);
             }
 
             return (environment, url, senderId, password, logPath,EnterpriseID,CompanyCode);
