@@ -8,8 +8,8 @@ TestResults/
 *.user
 *.suo
 
-# Installer output (large binaries)
-Installer/Output/
+# Installer output (large binaries) - **/ so it matches at any depth
+**/Installer/Output/
 
 # Local Claude settings
 **/.claude/settings.local.json
