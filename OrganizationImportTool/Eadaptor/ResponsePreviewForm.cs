@@ -17,16 +17,25 @@ namespace OrganizationImportTool.Eadaptor
     public class ResponsePreviewForm : Form
     {
         private readonly List<OrgSendOutcome> _outcomes;
+        private readonly IReadOnlyList<string>? _sourceHeaders;
+        private List<OrgSendOutcome> _view;
         private Guna.UI2.WinForms.Guna2DataGridView _grid = null!;
         private TextBox _detail = null!;
         private Label _summary = null!;
+        private Guna.UI2.WinForms.Guna2CheckBox _attentionOnly = null!;
 
-        public ResponsePreviewForm(List<OrgSendOutcome> outcomes)
+        public ResponsePreviewForm(List<OrgSendOutcome> outcomes, IReadOnlyList<string>? sourceHeaders = null)
         {
             _outcomes = outcomes;
+            _sourceHeaders = sourceHeaders;
+            _view = outcomes;
             BuildUi();
             Populate();
         }
+
+        /// <summary>Rows the operator should look at: blocked, rejected, skipped or warned.</summary>
+        private static bool NeedsAttention(OrgSendOutcome o) =>
+            o.Response.NotSent || o.Response.IsWarning || (!o.Response.IsSuccess && !o.Response.IsSimulatedOk);
 
         private void BuildUi()
         {
@@ -139,7 +148,25 @@ namespace OrganizationImportTool.Eadaptor
 
             var save = GunaUi.Button("Save Report", primary: false); save.Size = new Size(140, 40); save.Margin = new Padding(10, 0, 0, 0); save.Click += SaveReport_Click;
             var close = GunaUi.Button("Close", primary: true); close.Size = new Size(120, 40); close.DialogResult = DialogResult.OK;
-            var footer = GunaUi.ButtonBar(new Control[] { close, save });
+
+            // Re-export the rows that need fixing in their ORIGINAL columns + a Reason column,
+            // so the operator can correct just those rows and re-import the file directly.
+            var attention = _outcomes.Where(NeedsAttention).ToList();
+            var exportAttention = GunaUi.Button($"Export rows needing attention ({attention.Count})", primary: false);
+            exportAttention.Size = new Size(280, 40);
+            exportAttention.Click += ExportAttention_Click;
+            exportAttention.Visible = _sourceHeaders is { Count: > 0 } && attention.Count > 0;
+
+            _attentionOnly = GunaUi.Check("Only rows needing attention");
+            _attentionOnly.Margin = new Padding(10, 10, 0, 0);
+            _attentionOnly.Visible = attention.Count > 0 && attention.Count < _outcomes.Count;
+            _attentionOnly.CheckedChanged += (s, e) =>
+            {
+                _view = _attentionOnly.Checked ? _outcomes.Where(NeedsAttention).ToList() : _outcomes;
+                Populate();
+            };
+
+            var footer = GunaUi.ButtonBar(new Control[] { close, save, exportAttention }, new Control[] { _attentionOnly });
 
             Controls.Add(split);
             Controls.Add(footer);
@@ -150,25 +177,34 @@ namespace OrganizationImportTool.Eadaptor
 
         private void Populate()
         {
-            foreach (var o in _outcomes)
+            _grid.Rows.Clear();
+            foreach (var o in _view)
             {
                 var r = o.Response;
-                _grid.Rows.Add(o.RowNumber, o.SentCode, r.Status,
-                    r.Outcome, r.LocalCode, r.MessageNumber,
-                    r.IsSuccess ? "OK" : (r.Error ?? r.ProcessingLog));
+                string detail =
+                    r.IsWarning ? "Stored with warning: " + FirstLine(r.ProcessingLog) :
+                    r.IsSuccess ? "OK" : (r.Error ?? r.ProcessingLog);
+                _grid.Rows.Add(o.RowNumber, o.SentCode, r.Status, r.Outcome, r.LocalCode, r.MessageNumber, detail);
             }
             if (_grid.Rows.Count > 0) _grid.Rows[0].Selected = true;
             ShowDetail();
         }
 
+        private static string FirstLine(string text)
+        {
+            int i = (text ?? string.Empty).IndexOf('\n');
+            return i < 0 ? (text ?? string.Empty) : text!.Substring(0, i).TrimEnd('\r');
+        }
+
         private void Grid_CellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
         {
-            if (e.RowIndex < 0 || e.RowIndex >= _outcomes.Count) return;
+            if (e.RowIndex < 0 || e.RowIndex >= _view.Count) return;
             if (_grid.Columns[e.ColumnIndex].Name != "Status") return;
-            var r = _outcomes[e.RowIndex].Response;
+            var r = _view[e.RowIndex].Response;
             e.CellStyle.ForeColor = Color.White;
             e.CellStyle.Alignment = DataGridViewContentAlignment.MiddleCenter;
             e.CellStyle.BackColor =
+                r.IsAlreadyImported ? AppleTheme.Warning :
                 r.IsDuplicate ? AppleTheme.Warning :
                 r.IsSimulatedOk ? AppleTheme.Accent :
                 r.IsSuccess ? AppleTheme.Success :
@@ -179,8 +215,8 @@ namespace OrganizationImportTool.Eadaptor
         {
             if (_grid.SelectedRows.Count == 0) { _detail.Clear(); return; }
             int i = _grid.SelectedRows[0].Index;
-            if (i < 0 || i >= _outcomes.Count) return;
-            var o = _outcomes[i];
+            if (i < 0 || i >= _view.Count) return;
+            var o = _view[i];
             var sb = new StringBuilder();
             sb.AppendLine($"Row {o.RowNumber}   Sent Code: {o.SentCode}");
             sb.AppendLine($"Status: {o.Response.Status}   Outcome: {o.Response.Outcome}");
@@ -200,6 +236,49 @@ namespace OrganizationImportTool.Eadaptor
             sb.AppendLine(o.SentXml);
             _detail.Text = sb.ToString();
             _detail.SelectionStart = 0;
+        }
+
+        /// <summary>
+        /// Write the attention rows (blocked/rejected/skipped/warned) as a CSV with the ORIGINAL
+        /// source columns plus Status + Reason. Because the headers are the original ones, the
+        /// exported file re-imports directly - the learned mapping picks it up automatically.
+        /// </summary>
+        private void ExportAttention_Click(object? sender, EventArgs e)
+        {
+            if (_sourceHeaders == null || _sourceHeaders.Count == 0) return;
+            using var dlg = new SaveFileDialog { Filter = "CSV file|*.csv", FileName = "rows-needing-attention.csv" };
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+            try
+            {
+                static string Csv(string? v)
+                {
+                    v ??= string.Empty;
+                    return v.Contains(',') || v.Contains('"') || v.Contains('\n') || v.Contains('\r')
+                        ? "\"" + v.Replace("\"", "\"\"") + "\""
+                        : v;
+                }
+
+                var sb = new StringBuilder();
+                sb.AppendLine(string.Join(",", _sourceHeaders.Select(Csv).Concat(new[] { "Status", "Reason" })));
+                int exported = 0;
+                foreach (var o in _outcomes.Where(NeedsAttention))
+                {
+                    if (o.SourceRow == null) continue;
+                    var cells = _sourceHeaders.Select(h => Csv(o.SourceRow[h]))
+                        .Concat(new[] { Csv(o.Response.Status), Csv(o.Response.Error ?? FirstLine(o.Response.ProcessingLog)) });
+                    sb.AppendLine(string.Join(",", cells));
+                    exported++;
+                }
+                File.WriteAllText(dlg.FileName, sb.ToString());
+                MessageBox.Show(this,
+                    $"{exported} row(s) exported.\n\nFix the values in that file and import it again — " +
+                    "the columns are unchanged, so the mapping is remembered automatically.",
+                    "Exported", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Could not export: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void SaveReport_Click(object? sender, EventArgs e)

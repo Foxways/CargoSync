@@ -7,5 +7,8 @@ namespace OrganizationImportTool.Eadaptor
         public string SentCode { get; set; } = string.Empty;
         public string SentXml { get; set; } = string.Empty;
         public EadaptorResponse Response { get; set; } = new EadaptorResponse();
+
+        /// <summary>The original source row (raw header -> value), so failed/blocked rows can be re-exported for fixing.</summary>
+        public Ingestion.SourceRow? SourceRow { get; set; }
     }
 }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -52,6 +52,9 @@ namespace OrganizationImportTool.Pipeline
 
         public string? ImportLogPath { get; set; }
         public TimeSpan Elapsed { get; set; }
+
+        /// <summary>The source file's column headers, for re-exporting failed rows in their original shape.</summary>
+        public IReadOnlyList<string> SourceHeaders { get; set; } = Array.Empty<string>();
 
         public int Ok => Outcomes.Count(o => o.Response.IsSuccess);
         public int WarningCount => Outcomes.Count(o => o.Response.IsWarning);
@@ -128,6 +131,7 @@ namespace OrganizationImportTool.Pipeline
                     return result;
                 }
                 _ui.Log($"Loaded {table.RowCount} rows, {table.ColumnCount} columns.");
+                result.SourceHeaders = table.Headers;
 
                 // Start a detailed per-run audit log in the client's configured log folder.
                 if (req.LogDir != null)
@@ -453,7 +457,7 @@ namespace OrganizationImportTool.Pipeline
                         var skipOutcome = new OrgSendOutcome
                         {
                             RowNumber = row.RowNumber, SentCode = skipCode, SentXml = string.Empty,
-                            Response = EadaptorResponse.SkippedAlreadyImported("already imported successfully on a previous run")
+                            Response = EadaptorResponse.SkippedAlreadyImported("already imported successfully on a previous run"), SourceRow = row
                         };
                         result.Outcomes.Add(skipOutcome);
                         importLog?.Row(counter, skipOutcome, new List<string> { "skipped: already imported" });
@@ -467,7 +471,7 @@ namespace OrganizationImportTool.Pipeline
                     {
                         string dupReason = dupReasonByRow.TryGetValue(row.RowNumber, out var dr) ? dr : "duplicate of an earlier row";
                         string dupCode = BuildRowValues(row, includedCols, mapping).TryGetValue("orgHeader.code", out var dcc) ? dcc : $"(row {row.RowNumber})";
-                        var dupOutcome = new OrgSendOutcome { RowNumber = row.RowNumber, SentCode = dupCode, SentXml = string.Empty, Response = EadaptorResponse.SkippedDuplicate(dupReason) };
+                        var dupOutcome = new OrgSendOutcome { RowNumber = row.RowNumber, SentCode = dupCode, SentXml = string.Empty, Response = EadaptorResponse.SkippedDuplicate(dupReason), SourceRow = row };
                         result.Outcomes.Add(dupOutcome);
                         importLog?.Row(counter, dupOutcome, new List<string> { "skipped: " + dupReason });
                         _ui.Log($"  [{counter}] {dupCode}: SKIPPED (duplicate) - {dupReason}");
@@ -516,7 +520,7 @@ namespace OrganizationImportTool.Pipeline
                         if (req.DryRun) vr.Simulated = true; // preview label: "Would NOT send (validation)"
                         // include the would-be XML so the operator can inspect even a blocked row in a dry run
                         string failXml = req.DryRun ? SafeBuild(builder, values, req.OwnerCode) : string.Empty;
-                        var failOutcome = new OrgSendOutcome { RowNumber = row.RowNumber, SentCode = code, SentXml = failXml, Response = vr };
+                        var failOutcome = new OrgSendOutcome { RowNumber = row.RowNumber, SentCode = code, SentXml = failXml, Response = vr, SourceRow = row };
                         result.Outcomes.Add(failOutcome);
                         Logger.LogFailure($"{code} -> validation failed: {report.ErrorText}");
                         importLog?.Row(counter, failOutcome, warnList);
@@ -532,7 +536,7 @@ namespace OrganizationImportTool.Pipeline
                     // Dry run: build + record the would-be request, but never transmit it.
                     if (req.DryRun)
                     {
-                        var simOutcome = new OrgSendOutcome { RowNumber = row.RowNumber, SentCode = code, SentXml = xml, Response = EadaptorResponse.SimulatedOk(code) };
+                        var simOutcome = new OrgSendOutcome { RowNumber = row.RowNumber, SentCode = code, SentXml = xml, Response = EadaptorResponse.SimulatedOk(code), SourceRow = row };
                         result.Outcomes.Add(simOutcome);
                         importLog?.Row(counter, simOutcome, warnList);
                         _ui.Log($"  [{counter}] {code}: would send ✓ ({xml.Length} chars of Native XML built)");
@@ -541,7 +545,7 @@ namespace OrganizationImportTool.Pipeline
                     }
 
                     var resp = await _client.SendAsync(xml, token);
-                    var outcome = new OrgSendOutcome { RowNumber = row.RowNumber, SentCode = code, SentXml = xml, Response = resp };
+                    var outcome = new OrgSendOutcome { RowNumber = row.RowNumber, SentCode = code, SentXml = xml, Response = resp, SourceRow = row };
                     result.Outcomes.Add(outcome);
 
                     // CargoWise feedback sync: record what CW told us back (sent -> stored code, PK, status).
@@ -604,7 +608,14 @@ namespace OrganizationImportTool.Pipeline
                     int rejected = result.Outcomes.Count - ok - warnCount - notSentCount;
                     importLog?.Summary(result.Outcomes.Count, ok, warnCount, notSentCount, rejected, stopwatch.Elapsed);
 
-                    _ui.Log($"\r\nDone. {ok} succeeded, {result.Failed} failed of {result.Outcomes.Count}.");
+                    int skippedTotal = result.Outcomes.Count(o => o.Response.IsDuplicate || o.Response.IsAlreadyImported);
+                    int blocked = notSentCount - skippedTotal;
+                    var parts = new List<string> { $"{ok} succeeded" };
+                    if (warnCount > 0) parts.Add($"{warnCount} stored with warnings");
+                    if (rejected > 0) parts.Add($"{rejected} rejected by CargoWise");
+                    if (blocked > 0) parts.Add($"{blocked} blocked (validation)");
+                    if (skippedTotal > 0) parts.Add($"{skippedTotal} skipped");
+                    _ui.Log($"\r\nDone. {string.Join(", ", parts)} of {result.Outcomes.Count}.");
                     if (importLog?.Ok == true) _ui.Log($"Full details written to: {importLog.FilePath}");
                     _ui.Status($"Complete: {ok}/{result.Outcomes.Count} ok");
                 }

@@ -814,7 +814,7 @@ namespace OrganizationImportTool
 
                 // Professional response preview (titled "Dry Run" automatically when simulated).
                 if (result.Outcomes.Count > 0)
-                    using (var preview = new ResponsePreviewForm(result.Outcomes))
+                    using (var preview = new ResponsePreviewForm(result.Outcomes, result.SourceHeaders))
                     {
                         StepBanner.Attach(preview, 6, 6, "Results",
                             dryRun ? "Dry run — nothing was sent to CargoWise." : "The import has finished — nothing more will be sent.",
