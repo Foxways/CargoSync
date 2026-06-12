@@ -18,6 +18,8 @@ namespace OrganizationImportTool
         private Guna2ComboBox envBox;
         private Guna2DataGridView grid;
         private int selectedAdaptorId = -1; // To store the ID of the selected EAdaptor entry for update
+        private Spinner _testSpinner;
+        private Label _testLbl;
 
 
 
@@ -63,6 +65,15 @@ namespace OrganizationImportTool
             var closeBtn = GunaUi.Button("Close", primary: false); closeBtn.Size = new Size(92, 38); closeBtn.DialogResult = DialogResult.Cancel;
             buttons.Controls.AddRange(new Control[] { newBtn, saveBtn, updateBtn, refreshBtn, closeBtn });
             CancelButton = closeBtn;
+
+            // Test Connection row: proves URL + Sender ID + Password against the live eAdaptor
+            // BEFORE saving, so a typo never becomes a mysterious failed import later.
+            var testRow = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 50, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, BackColor = Color.Transparent, Padding = new Padding(0, 8, 0, 0) };
+            var testBtn = GunaUi.Button("Test Connection", primary: false); testBtn.Size = new Size(150, 38); testBtn.Margin = new Padding(0, 0, 10, 0);
+            testBtn.Click += async (s, e) => await TestConnectionAsync();
+            _testSpinner = GunaUi.Spinner(24); _testSpinner.Margin = new Padding(0, 7, 8, 0);
+            _testLbl = new Label { AutoSize = true, Font = AppleTheme.Body, ForeColor = AppleTheme.TextSecondary, Padding = new Padding(0, 10, 0, 0) };
+            testRow.Controls.AddRange(new Control[] { testBtn, _testSpinner, _testLbl });
 
             var fg = new TableLayoutPanel { Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, ColumnCount = 2, BackColor = Color.Transparent };
             fg.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150));
@@ -115,6 +126,7 @@ namespace OrganizationImportTool
             Field("Company Code", companyCodeBox);
             Field("Log Folder", logCell, 54);
 
+            leftCard.Controls.Add(testRow);
             leftCard.Controls.Add(buttons);
             leftCard.Controls.Add(fg);
             leftCard.Controls.Add(formTitle);
@@ -143,6 +155,50 @@ namespace OrganizationImportTool
 
 
 
+
+        /// <summary>Probe the live eAdaptor with the values currently typed into the form.</summary>
+        private async System.Threading.Tasks.Task TestConnectionAsync()
+        {
+            string url = urlBox.Text.Trim(), sender = senderBox.Text.Trim(), pass = passwordBox.Text.Trim();
+            if (url.Length == 0 || sender.Length == 0 || pass.Length == 0)
+            {
+                _testLbl.ForeColor = AppleTheme.Warning;
+                _testLbl.Text = "Fill in the eAdaptor URL, Sender ID and Password first.";
+                return;
+            }
+
+            _testLbl.ForeColor = AppleTheme.TextSecondary;
+            _testLbl.Text = "Contacting CargoWise…";
+            _testSpinner.Start();
+            try
+            {
+                using var cts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(30));
+                var client = new Eadaptor.EadaptorClient(url, sender, pass);
+                var resp = await client.TestConnectionAsync(cts.Token);
+
+                if (resp.TransportOk)
+                {
+                    _testLbl.ForeColor = AppleTheme.Success;
+                    _testLbl.Text = "✓ Connected — CargoWise answered. URL and sign-in details work.";
+                }
+                else if (resp.HttpStatus is 401 or 403)
+                {
+                    _testLbl.ForeColor = AppleTheme.Danger;
+                    _testLbl.Text = "✗ Reached the server, but sign-in failed — check the Sender ID and Password.";
+                }
+                else
+                {
+                    _testLbl.ForeColor = AppleTheme.Danger;
+                    _testLbl.Text = "✗ Could not reach the eAdaptor: " + (resp.Error ?? $"HTTP {resp.HttpStatus}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _testLbl.ForeColor = AppleTheme.Danger;
+                _testLbl.Text = "✗ " + ex.Message;
+            }
+            finally { _testSpinner.Stop(); }
+        }
 
         private void SaveBtn_Click(object sender, EventArgs e)
         {

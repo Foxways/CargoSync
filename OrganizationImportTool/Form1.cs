@@ -34,6 +34,7 @@ namespace OrganizationImportTool
         private Guna2ComboBox clientBox;
         private Guna2Button browseBtn, uploadBtn, dryRunBtn, addClientBtn, cancelBtn, aiSettingsBtn, pauseBtn, cwSyncBtn; // Add a button to open Form2
         private AiStatusChip aiChip;
+        private Panel _getStartedOverlay;
         private Guna2TextBox filePathBox;
         private volatile bool _paused;
         private volatile bool _running; // true while an import/dry-run loop is in flight (reentrancy guard)
@@ -77,6 +78,49 @@ namespace OrganizationImportTool
             InitializeDatabase();
             LoadClients();
             InitializeAi();
+            this.Shown += (s, e) => MaybeRunWelcomeWizard();
+        }
+
+        /// <summary>First launch with no clients: run the guided setup instead of showing dead buttons.</summary>
+        private void MaybeRunWelcomeWizard()
+        {
+            var prefs = AppPrefs.Load();
+            if (clientBox.Items.Count == 0 && !prefs.WelcomeWizardCompleted)
+                RunWelcomeWizard();
+            UpdateEmptyState();
+        }
+
+        private void RunWelcomeWizard()
+        {
+            try
+            {
+                using var wiz = new Onboarding.WelcomeWizard(
+                    () => { LoadClients(); return clientBox.Items.Count; }, _aiSettings);
+                wiz.ShowDialog(this);
+
+                var prefs = AppPrefs.Load();
+                prefs.WelcomeWizardCompleted = true;   // finished OR skipped - never nag on every launch
+                prefs.AiConsentShown = true;           // the wizard's AI page carries the privacy notice
+                prefs.Save();
+
+                RebuildAiRouter();                     // the wizard may have flipped AI on/off
+                LoadClients();
+                UpdateEmptyState();
+            }
+            catch (Exception ex) { Logging.AppLog.Error("Welcome wizard failed", ex); }
+        }
+
+        /// <summary>Show the friendly Get Started overlay while no CargoWise client is configured.</summary>
+        private void UpdateEmptyState()
+        {
+            bool empty = clientBox.Items.Count == 0;
+            if (_getStartedOverlay != null)
+            {
+                _getStartedOverlay.Visible = empty;
+                if (empty) _getStartedOverlay.BringToFront();
+            }
+            if (empty && labelCounter != null)
+                labelCounter.Text = "No CargoWise connection yet — click Get started.";
         }
 
         private void InitializeAi()
@@ -250,6 +294,26 @@ namespace OrganizationImportTool
             formGrid.Controls.Add(actions, 1, 3);
             formGrid.SetColumnSpan(actions, 2);
             inputCard.Controls.Add(formGrid);
+
+            // First-run empty state: a clear call to action instead of a row of dead disabled buttons.
+            _getStartedOverlay = new Panel { Dock = DockStyle.Fill, BackColor = AppleTheme.CardFill, Visible = false };
+            var gsInner = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, AutoSize = true, WrapContents = false, BackColor = Color.Transparent };
+            var gsTitle = new Label { Text = "Welcome to CargoSync 👋", Font = AppleTheme.Title, ForeColor = AppleTheme.TextPrimary, AutoSize = true, Margin = new Padding(0, 0, 0, 6) };
+            var gsText = new Label { Text = "Connect your CargoWise system to start importing organizations.", Font = AppleTheme.Body, ForeColor = AppleTheme.TextSecondary, AutoSize = true, Margin = new Padding(0, 0, 0, 14) };
+            var gsBtn = GunaButton("Get started", primary: true);
+            gsBtn.Size = new Size(180, 44);
+            gsBtn.Click += (s, e) => RunWelcomeWizard();
+            gsInner.Controls.Add(gsTitle);
+            gsInner.Controls.Add(gsText);
+            gsInner.Controls.Add(gsBtn);
+            _getStartedOverlay.Controls.Add(gsInner);
+            void CenterGetStarted() => gsInner.Location = new Point(
+                Math.Max(0, (_getStartedOverlay.Width - gsInner.Width) / 2),
+                Math.Max(0, (_getStartedOverlay.Height - gsInner.Height) / 2));
+            _getStartedOverlay.Resize += (s, e) => CenterGetStarted();
+            gsInner.SizeChanged += (s, e) => CenterGetStarted();
+            inputCard.Controls.Add(_getStartedOverlay);
+            _getStartedOverlay.BringToFront();
 
             // ---- Log card ----
             var logCard = GunaCard();

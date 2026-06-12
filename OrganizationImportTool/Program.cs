@@ -128,6 +128,7 @@ namespace OrganizationImportTool
                     switch (mode)
                     {
                         case "--ui-client": Application.Run(new EAdaptorSetupForm()); return;
+                        case "--ui-wizard": Application.Run(new Onboarding.WelcomeWizard(() => 0, Ai.AiSettings.Load()) { ShowInTaskbar = true }); return;
                         case "--ui-forgot": Application.Run(new Auth.ForgotPasswordForm(new Auth.UserStore())); return;
                         case "--ui-main": Application.Run(new Form1(new Auth.User { Id = 1, Username = "demo" })); return;
                         case "--ui-map":
