@@ -11,6 +11,10 @@ TestResults/
 # Installer output (large binaries) - **/ so it matches at any depth
 **/Installer/Output/
 
+# Legacy Visual Studio installer project output (binaries may embed secrets)
+Setup1/Debug/
+Setup1/Release/
+
 # Local Claude settings
 **/.claude/settings.local.json
 
