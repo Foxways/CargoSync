@@ -53,7 +53,7 @@ namespace OrganizationImportTool.Ai
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(76)));   // input
 
             var header = new Panel { Dock = DockStyle.Fill, BackColor = AppleTheme.Canvas };
-            var title = new Label { Text = "CargoSync Copilot ✨", Dock = DockStyle.Top, Height = 50, Padding = new Padding(16, 8, 0, 2), Font = AppleTheme.Title, ForeColor = AppleTheme.Accent, TextAlign = ContentAlignment.MiddleLeft };
+            var title = new Label { Text = "CargoSync Copilot ✨", Dock = DockStyle.Top, Height = LogicalToDeviceUnits(52), Padding = new Padding(16, 6, 0, 2), Font = AppleTheme.Title, ForeColor = AppleTheme.Accent, TextAlign = ContentAlignment.MiddleLeft };
             var sub = new Label { Text = "Ask about your file, mapping, risks or rules", Dock = DockStyle.Top, Height = 22, Padding = new Padding(18, 0, 0, 0), Font = AppleTheme.Body, ForeColor = AppleTheme.TextSecondary };
             header.Controls.Add(sub);
             header.Controls.Add(title);

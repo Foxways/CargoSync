@@ -39,18 +39,18 @@ namespace OrganizationImportTool.Enrichment
             int api = _items.Count(i => i.Source == "Postal API");
             int ai = _items.Count(i => i.Source == "AI");
 
-            var header = new Panel { Dock = DockStyle.Top, Height = 100, BackColor = AppleTheme.Canvas, Padding = new Padding(0, 8, 0, 4) };
+            var header = new Panel { Dock = DockStyle.Top, Height = LogicalToDeviceUnits(106), BackColor = AppleTheme.Canvas, Padding = new Padding(0, 8, 0, 4) };
             var title = new Label
             {
                 Text = $"✚  {_items.Count} field(s) can be enriched",
-                Dock = DockStyle.Top, Height = 48, Padding = new Padding(20, 14, 0, 0),
+                Dock = DockStyle.Top, Height = LogicalToDeviceUnits(52), Padding = new Padding(20, 12, 0, 0),
                 Font = AppleTheme.Title, ForeColor = AppleTheme.Accent
             };
             var desc = new Label
             {
                 Text = $"These EMPTY fields can be filled from external sources ({api} from the Postal API, {ai} from AI). " +
                        "Enrichment never overwrites your data. Untick any you don't want.",
-                Dock = DockStyle.Top, Height = 44, Padding = new Padding(22, 0, 16, 0),
+                Dock = DockStyle.Top, Height = LogicalToDeviceUnits(46), Padding = new Padding(22, 0, 16, 0),
                 Font = AppleTheme.Body, ForeColor = AppleTheme.TextSecondary
             };
             header.Controls.Add(desc);

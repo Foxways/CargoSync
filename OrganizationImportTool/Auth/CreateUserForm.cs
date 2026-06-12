@@ -60,7 +60,7 @@ namespace OrganizationImportTool.Auth
             logoHost.Controls.Add(logo);
             logoHost.Resize += (s, e) => logo.Left = Math.Max(0, (logoHost.Width - logo.Width) / 2);
             Row(logoHost, 60, 6);
-            Row(new Label { Text = "Create account", Dock = DockStyle.Fill, Font = AppleTheme.Title, ForeColor = AppleTheme.TextPrimary, TextAlign = ContentAlignment.MiddleCenter }, 38, 10);
+            Row(new Label { Text = "Create account", Dock = DockStyle.Fill, Font = AppleTheme.Title, ForeColor = AppleTheme.TextPrimary, TextAlign = ContentAlignment.MiddleCenter }, LogicalToDeviceUnits(44), 10);
             Row(Lbl("Username"), 20);
             Row(_user, 38, 12);
             Row(Lbl("Password"), 20);

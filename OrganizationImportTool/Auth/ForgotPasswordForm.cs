@@ -72,7 +72,7 @@ namespace OrganizationImportTool.Auth
                 tl.Controls.Add(c, 0, r++);
             }
 
-            Row(new Label { Text = "Forgot password", Dock = DockStyle.Fill, Font = AppleTheme.Title, ForeColor = AppleTheme.TextPrimary, TextAlign = ContentAlignment.MiddleLeft }, 40, 8);
+            Row(new Label { Text = "Forgot password", Dock = DockStyle.Fill, Font = AppleTheme.Title, ForeColor = AppleTheme.TextPrimary, TextAlign = ContentAlignment.MiddleLeft }, LogicalToDeviceUnits(44), 8);
             Row(Lbl("Username"), 20);
             Row(_user, 38, 6);
             Row(showHint, 40, 4);

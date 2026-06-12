@@ -39,11 +39,11 @@ namespace OrganizationImportTool.Sync
 
             int ok = _entries.Count(e => e.IsSuccess);
 
-            var header = new Panel { Dock = DockStyle.Top, Height = 92, BackColor = AppleTheme.Canvas, Padding = new Padding(0, 6, 0, 4) };
+            var header = new Panel { Dock = DockStyle.Top, Height = LogicalToDeviceUnits(98), BackColor = AppleTheme.Canvas, Padding = new Padding(0, 6, 0, 4) };
             var title = new Label
             {
                 Text = $"CargoWise sync — {(_clientName.Length == 0 ? "all clients" : _clientName)}",
-                Dock = DockStyle.Top, Height = 42, Padding = new Padding(20, 12, 0, 0),
+                Dock = DockStyle.Top, Height = LogicalToDeviceUnits(48), Padding = new Padding(20, 10, 0, 0),
                 Font = AppleTheme.Title, ForeColor = AppleTheme.TextPrimary
             };
             var sub = new Label
@@ -51,7 +51,7 @@ namespace OrganizationImportTool.Sync
                 Text = _entries.Count == 0
                     ? "Nothing synced yet. After a live import, every organization CargoWise accepts is recorded here."
                     : $"{_entries.Count} record(s)   •   {ok} currently in CargoWise (PRS).   Sent code → the code CargoWise stored (code-gen may rename).",
-                Dock = DockStyle.Top, Height = 30, Padding = new Padding(22, 2, 16, 0),
+                Dock = DockStyle.Top, Height = LogicalToDeviceUnits(32), Padding = new Padding(22, 2, 16, 0),
                 Font = AppleTheme.Headline, ForeColor = ok > 0 ? AppleTheme.Success : AppleTheme.TextSecondary
             };
             header.Controls.Add(sub);

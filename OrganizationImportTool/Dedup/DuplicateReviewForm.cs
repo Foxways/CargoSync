@@ -48,11 +48,11 @@ namespace OrganizationImportTool.Dedup
 
             int extras = _groups.Sum(g => g.Extras.Count());
 
-            var header = new Panel { Dock = DockStyle.Top, Height = 100, BackColor = AppleTheme.Canvas, Padding = new Padding(0, 8, 0, 4) };
+            var header = new Panel { Dock = DockStyle.Top, Height = LogicalToDeviceUnits(106), BackColor = AppleTheme.Canvas, Padding = new Padding(0, 8, 0, 4) };
             var title = new Label
             {
                 Text = $"⚠  {_groups.Count} possible duplicate group(s) found",
-                Dock = DockStyle.Top, Height = 48, Padding = new Padding(20, 14, 0, 0),
+                Dock = DockStyle.Top, Height = LogicalToDeviceUnits(52), Padding = new Padding(20, 12, 0, 0),
                 Font = AppleTheme.Title, ForeColor = AppleTheme.Warning
             };
             var desc = new Label

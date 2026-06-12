@@ -44,7 +44,7 @@ namespace OrganizationImportTool.Auth
             logoHost.Controls.Add(logo);
             logoHost.Resize += (s, e) => logo.Left = Math.Max(0, (logoHost.Width - logo.Width) / 2);
 
-            var title = new Label { Text = "CargoSync", Dock = DockStyle.Top, Height = 34, Font = AppleTheme.Title, ForeColor = AppleTheme.TextPrimary, TextAlign = ContentAlignment.MiddleCenter };
+            var title = new Label { Text = "CargoSync", Dock = DockStyle.Top, Height = LogicalToDeviceUnits(40), Font = AppleTheme.Title, ForeColor = AppleTheme.TextPrimary, TextAlign = ContentAlignment.MiddleCenter };
             var subtitle = new Label { Text = "Sign in to continue", Dock = DockStyle.Top, Height = 26, Font = AppleTheme.Body, ForeColor = AppleTheme.TextSecondary, TextAlign = ContentAlignment.MiddleCenter };
 
             var spacer1 = new Panel { Dock = DockStyle.Top, Height = 18, BackColor = Color.Transparent };

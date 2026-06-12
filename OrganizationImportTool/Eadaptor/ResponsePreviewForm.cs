@@ -50,12 +50,12 @@ namespace OrganizationImportTool.Eadaptor
 
             bool dryRun = _outcomes.Any(o => o.Response.Simulated);
 
-            var header = new Panel { Dock = DockStyle.Top, Height = LogicalToDeviceUnits(118), BackColor = AppleTheme.Canvas, Padding = new Padding(0, 6, 0, 6) };
+            var header = new Panel { Dock = DockStyle.Top, Height = LogicalToDeviceUnits(126), BackColor = AppleTheme.Canvas, Padding = new Padding(0, 6, 0, 6) };
             var title = new Label
             {
                 Text = dryRun ? "Import Preview  (Dry Run — nothing was sent)" : "Import Results",
-                Dock = DockStyle.Top, Height = 44,
-                Padding = new Padding(20, 12, 0, 0),
+                Dock = DockStyle.Top, Height = LogicalToDeviceUnits(50),
+                Padding = new Padding(20, 10, 0, 0),
                 Font = AppleTheme.Title, ForeColor = dryRun ? AppleTheme.Accent : AppleTheme.TextPrimary
             };
 
@@ -87,7 +87,7 @@ namespace OrganizationImportTool.Eadaptor
             }
             _summary = new Label
             {
-                Dock = DockStyle.Top, Height = 34,
+                Dock = DockStyle.Top, Height = LogicalToDeviceUnits(34),
                 Padding = new Padding(22, 2, 0, 0),
                 Font = AppleTheme.Headline,
                 Text = summaryText,

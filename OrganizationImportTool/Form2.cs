@@ -55,7 +55,7 @@ namespace OrganizationImportTool
             // ---- left: form card ----
             var leftCard = GunaUi.Card(); leftCard.Dock = DockStyle.Fill; leftCard.Margin = new Padding(0, 0, 12, 0); leftCard.Padding = new Padding(16);
 
-            var formTitle = new Label { Text = "Client Details", Dock = DockStyle.Top, Height = 30, Font = AppleTheme.Headline, ForeColor = AppleTheme.TextPrimary };
+            var formTitle = new Label { Text = "Client Details", Dock = DockStyle.Top, Height = LogicalToDeviceUnits(32), Font = AppleTheme.Headline, ForeColor = AppleTheme.TextPrimary };
 
             var buttons = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 54, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, AutoScroll = false, BackColor = Color.Transparent, Padding = new Padding(0, 12, 0, 0) };
             var newBtn = GunaUi.Button("+ New", primary: false); newBtn.Size = new Size(92, 38); newBtn.Margin = new Padding(0, 0, 7, 0); newBtn.Click += NewBtn_Click;
@@ -146,7 +146,7 @@ namespace OrganizationImportTool
 
             // ---- right: saved clients grid ----
             var rightCard = GunaUi.Card(); rightCard.Dock = DockStyle.Fill; rightCard.Padding = new Padding(12);
-            var gridTitle = new Label { Text = "Saved Clients  (click a row to edit)", Dock = DockStyle.Top, Height = 38, Font = AppleTheme.Headline, ForeColor = AppleTheme.TextPrimary, Padding = new Padding(0, 4, 0, 6) };
+            var gridTitle = new Label { Text = "Saved Clients  (click a row to edit)", Dock = DockStyle.Top, Height = LogicalToDeviceUnits(40), Font = AppleTheme.Headline, ForeColor = AppleTheme.TextPrimary, Padding = new Padding(0, 4, 0, 6) };
             grid = new Guna2DataGridView
             {
                 Dock = DockStyle.Fill,

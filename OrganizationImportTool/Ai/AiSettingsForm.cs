@@ -63,7 +63,7 @@ namespace OrganizationImportTool.Ai
 
             // Header: title on the left, master toggle docked right (no magic pixel offsets, so it
             // stays put at any window width/DPI), and a one-line privacy note underneath.
-            var header = new Panel { Dock = DockStyle.Top, Height = 84, BackColor = AppleTheme.Canvas };
+            var header = new Panel { Dock = DockStyle.Top, Height = LogicalToDeviceUnits(90), BackColor = AppleTheme.Canvas };
             var title = new Label
             {
                 Text = "AI Assistance",
@@ -86,7 +86,7 @@ namespace OrganizationImportTool.Ai
                 Text = "Privacy: when AI is on, column names and sample values from your file are sent to the selected provider. " +
                        "Turn AI off any time — every feature still works without it.",
                 Dock = DockStyle.Bottom,
-                Height = 34,
+                Height = LogicalToDeviceUnits(36),
                 Padding = new Padding(22, 0, 12, 4),
                 Font = AppleTheme.Caption,
                 ForeColor = AppleTheme.TextSecondary

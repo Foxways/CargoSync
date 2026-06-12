@@ -41,18 +41,18 @@ namespace OrganizationImportTool.Transform
 
             int ai = _changes.Count(c => c.Source == CleanSource.Ai);
 
-            var header = new Panel { Dock = DockStyle.Top, Height = 100, BackColor = AppleTheme.Canvas, Padding = new Padding(0, 8, 0, 4) };
+            var header = new Panel { Dock = DockStyle.Top, Height = LogicalToDeviceUnits(106), BackColor = AppleTheme.Canvas, Padding = new Padding(0, 8, 0, 4) };
             var title = new Label
             {
                 Text = $"🧹  {_changes.Count} suggested fix(es) before import",
-                Dock = DockStyle.Top, Height = 48, Padding = new Padding(20, 14, 0, 0),
+                Dock = DockStyle.Top, Height = LogicalToDeviceUnits(52), Padding = new Padding(20, 12, 0, 0),
                 Font = AppleTheme.Title, ForeColor = AppleTheme.Accent
             };
             var desc = new Label
             {
                 Text = $"Your data is sent AS-IS by default — tick only the fixes you want applied ({ai} are AI suggestions). " +
                        "Nothing here changes your original file.",
-                Dock = DockStyle.Top, Height = 44, Padding = new Padding(22, 0, 16, 0),
+                Dock = DockStyle.Top, Height = LogicalToDeviceUnits(46), Padding = new Padding(22, 0, 16, 0),
                 Font = AppleTheme.Body, ForeColor = AppleTheme.TextSecondary
             };
             header.Controls.Add(desc);

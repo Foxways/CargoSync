@@ -241,10 +241,10 @@ namespace OrganizationImportTool
             formGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 86));
             formGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             formGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 138));
-            formGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
-            formGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 28));
-            formGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
-            formGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, 56));
+            formGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(44)));
+            formGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(30)));
+            formGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(44)));
+            formGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(56)));
 
             var clientLbl = MakeFieldLabel("Client");
             clientBox = new Guna2ComboBox
@@ -343,8 +343,8 @@ namespace OrganizationImportTool
 
             // ---- Status + progress ----
             var statusPanel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, BackColor = Color.Transparent };
-            statusPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 26));
-            statusPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 14));
+            statusPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(28)));
+            statusPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(14)));
             labelCounter = new Label { Text = "Ready", Dock = DockStyle.Fill, Font = AppleTheme.Headline, ForeColor = AppleTheme.Accent, TextAlign = ContentAlignment.MiddleLeft, Name = "labelCounter" };
             progressBar = new Guna2ProgressBar
             {
