@@ -29,7 +29,7 @@ namespace OrganizationImportTool.Tests
         [Theory]
         [InlineData("2026-01-31", "2026-01-31")]
         [InlineData("31/01/2026", "2026-01-31")]
-        [InlineData("1/2/2026", "2026-02-01")] // dd/MM preferred over MM/dd by format order
+        [InlineData("1/2/2026", "2026-01-02")] // MM/dd preferred over dd/MM by format order (US-locale files)
         [InlineData("31-01-2026", "2026-01-31")]
         [InlineData("31.01.2026", "2026-01-31")]
         [InlineData("20260131", "2026-01-31")]

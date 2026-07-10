@@ -85,7 +85,7 @@ namespace OrganizationImportTool.Tests
         }
 
         [Fact]
-        public async Task Blocked_rows_write_attention_csv_and_move_to_processed()
+        public async Task Blocked_rows_write_attention_csv_and_move_to_failed()
         {
             MakeFile("a.csv");
             var job = Job();
@@ -95,8 +95,8 @@ namespace OrganizationImportTool.Tests
                 (f, ct) => Task.FromResult(BlockedResult()), _root, null, null, Now);
 
             Assert.Equal(2, summary.ExitCode);                       // not clean (a blocked row)
-            Assert.False(summary.Files[0].MovedToFailed);            // no run-level error -> processed
-            Assert.Single(Directory.GetFiles(Path.Combine(_root, "processed")));
+            Assert.True(summary.Files[0].MovedToFailed);             // partial import -> failed subfolder
+            Assert.Single(Directory.GetFiles(Path.Combine(_root, "failed")));
             Assert.NotNull(summary.Files[0].Report.FailedRowsCsvPath);
             Assert.True(File.Exists(summary.Files[0].Report.FailedRowsCsvPath!));
         }
