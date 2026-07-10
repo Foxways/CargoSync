@@ -172,7 +172,7 @@ namespace OrganizationImportTool.Transform
                                 em.TryGetValue(baseVal, out fixedVal);
                         }
 
-                        if (!string.IsNullOrWhiteSpace(fixedVal) && !string.Equals(fixedVal, original, StringComparison.Ordinal))
+                        if (!string.IsNullOrWhiteSpace(fixedVal) && !string.Equals(fixedVal, baseVal, StringComparison.OrdinalIgnoreCase))
                         {
                             // replace any earlier Auto change for this cell - the AI fix supersedes it
                             changes.RemoveAll(c => c.RowNumber == row.RowNumber && c.Path == path);

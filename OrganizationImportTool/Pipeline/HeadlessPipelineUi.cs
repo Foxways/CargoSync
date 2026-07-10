@@ -30,11 +30,11 @@ namespace OrganizationImportTool.Pipeline
             return Task.FromResult<MappingResult?>(suggested);
         }
 
-        public Task<bool> ConfirmProfileAsync(ProfileReport report)
+        public Task<GateNav> ConfirmProfileAsync(ProfileReport report)
         {
             Console.WriteLine($"  Risk: {report.Level} (score {report.Score}/100)  |  blocking {report.BlockingRows}, duplicates {report.DuplicateRows}, warnings {report.WarningRows}");
             foreach (var f in report.Factors) Console.WriteLine("    • " + f);
-            return Task.FromResult(true);
+            return Task.FromResult(GateNav.Proceed);
         }
 
         public Task<DuplicateDecision> ReviewDuplicatesAsync(List<DuplicateGroup> groups)
@@ -49,22 +49,28 @@ namespace OrganizationImportTool.Pipeline
             return Task.FromResult(new DuplicateDecision { SkipDuplicates = true, RowsToSkip = skip });
         }
 
-        public Task<bool> ReviewCleaningAsync(List<CleaningChange> changes)
+        public Task<GateNav> ReviewCleaningAsync(List<CleaningChange> changes)
         {
             foreach (var ch in changes)
                 Console.WriteLine($"  row{ch.RowNumber} {ch.Path}: \"{ch.Original}\" -> \"{ch.Cleaned}\"  [{ch.Reason}/{ch.Source}]");
             Console.WriteLine($"  [headless: auto-accepting {changes.Count} fix(es)]");
             foreach (var ch in changes) ch.Accept = true;
-            return Task.FromResult(true);
+            return Task.FromResult(GateNav.Proceed);
         }
 
-        public Task<bool> ReviewEnrichmentAsync(List<EnrichmentSuggestion> suggestions)
+        public Task<GateNav> ReviewEnrichmentAsync(List<EnrichmentSuggestion> suggestions)
         {
             foreach (var s in suggestions)
                 Console.WriteLine($"  row{s.RowNumber} {s.Path}: \"{s.Value}\"  [{s.Source}]");
             Console.WriteLine($"  [headless: auto-accepting {suggestions.Count} enrichment(s)]");
             foreach (var s in suggestions) s.Accept = true;
-            return Task.FromResult(true);
+            return Task.FromResult(GateNav.Proceed);
+        }
+
+        public Task<GateNav> ConfirmSendAsync(int rowsToSend, int totalRows, bool dryRun, string environment, string clientName)
+        {
+            Console.WriteLine($"  [headless: confirming send - {rowsToSend}/{totalRows} row(s), {(dryRun ? "DRY RUN" : "LIVE")} to {environment}]");
+            return Task.FromResult(GateNav.Proceed);
         }
 
         public Task<ResumeChoice> ConfirmResumeAsync(int alreadyImported, int totalRows, string? crashedRunDescription)

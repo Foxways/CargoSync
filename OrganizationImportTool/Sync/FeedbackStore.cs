@@ -94,12 +94,12 @@ CREATE TABLE IF NOT EXISTS ImportRuns (
 
         // ---------------- per-run journal (crash/resume detection) ----------------
 
-        /// <summary>Open a run journal entry; returns the run id. CompletedUtc stays NULL until CompleteRun.</summary>
+        /// <summary>Open a run journal entry; returns the run id, or empty string if the INSERT failed (crash-detection is then unavailable for this run).</summary>
         public string BeginRun(string clientId, string fileName, string fileHash, int totalRows, string username)
         {
-            string runId = Guid.NewGuid().ToString("N");
             try
             {
+                string runId = Guid.NewGuid().ToString("N");
                 using var conn = new SQLiteConnection(_connStr);
                 conn.Open();
                 using var cmd = new SQLiteCommand(
@@ -113,9 +113,13 @@ CREATE TABLE IF NOT EXISTS ImportRuns (
                 cmd.Parameters.AddWithValue("@s", DateTime.UtcNow.ToString("o"));
                 cmd.Parameters.AddWithValue("@u", username ?? "");
                 cmd.ExecuteNonQuery();
+                return runId;
             }
-            catch (Exception ex) { Logging.AppLog.Warn("Run journal BeginRun failed", ex); }
-            return runId;
+            catch (Exception ex)
+            {
+                Logging.AppLog.Warn("Run journal BeginRun failed — crash-detection is unavailable for this run", ex);
+                return string.Empty;
+            }
         }
 
         /// <summary>Mark a run as cleanly finished (crash detection = runs that never reach this).</summary>
@@ -267,7 +271,8 @@ CREATE TABLE IF NOT EXISTS ImportRuns (
                 Status = r["Status"]?.ToString() ?? "",
                 MessageNumber = r["MessageNumber"]?.ToString() ?? "",
                 Username = r["Username"]?.ToString() ?? "",
-                SyncedUtc = when
+                SyncedUtc = when,
+                RunId = r["RunId"]?.ToString() ?? ""
             };
         }
     }

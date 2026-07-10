@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -88,9 +88,10 @@ namespace OrganizationImportTool.Dedup
             var skipPanel = new Panel { Dock = DockStyle.Bottom, Height = 40, BackColor = AppleTheme.Canvas, Padding = new Padding(20, 4, 18, 4) };
             skipPanel.Controls.Add(_skip);
 
-            var cont = GunaUi.Button("Continue", primary: true); cont.Size = new Size(150, 40); cont.DialogResult = DialogResult.OK;
-            var cancel = GunaUi.Button("Cancel import", primary: false); cancel.Size = new Size(150, 40); cancel.DialogResult = DialogResult.Cancel; cancel.Margin = new Padding(10, 0, 0, 0);
-            var bottom = GunaUi.ButtonBar(new Control[] { cont, cancel });
+            var cont = GunaUi.Button("Continue", primary: true); cont.Size = new Size(TextRenderer.MeasureText(cont.Text, cont.Font).Width + 60, 34); cont.DialogResult = DialogResult.OK;
+            var back = GunaUi.Button("← Back", primary: false); back.Size = new Size(TextRenderer.MeasureText(back.Text, back.Font).Width + 60, 34); back.DialogResult = DialogResult.Retry; back.Margin = new Padding(10, 0, 0, 0);
+            var cancel = GunaUi.Button("Cancel import", primary: false); cancel.Size = new Size(TextRenderer.MeasureText(cancel.Text, cancel.Font).Width + 60, 34); cancel.DialogResult = DialogResult.Cancel; cancel.Margin = new Padding(10, 0, 0, 0);
+            var bottom = GunaUi.ButtonBar(new Control[] { cont, cancel, back });
 
             Controls.Add(_grid);
             Controls.Add(skipPanel);

@@ -13,6 +13,11 @@ namespace OrganizationImportTool
         private static ILog SuccessLog { get; set; }
         private static ILog FailedLog { get; set; }
 
+        // Track only the appenders THIS class owns so we can swap them per-run without
+        // touching the root hierarchy or any appenders registered by AppLog.
+        private static RollingFileAppender? _prevSuccess;
+        private static RollingFileAppender? _prevFailed;
+
         public static void Setup(string logFolderPath)
         {
             // Ensure the log folder exists
@@ -20,7 +25,10 @@ namespace OrganizationImportTool
                 Directory.CreateDirectory(logFolderPath);
 
             var hierarchy = (Hierarchy)LogManager.GetRepository();
-            hierarchy.ResetConfiguration();
+            // DO NOT call hierarchy.ResetConfiguration() — it destroys every appender in the
+            // global repository, including AppLog's own appenders, silencing all diagnostics
+            // for the rest of the session. Instead, remove only our previously registered
+            // appenders from their named loggers before installing the new ones.
 
             string timestamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
 
@@ -49,7 +57,9 @@ namespace OrganizationImportTool
             var successLogger = (log4net.Repository.Hierarchy.Logger)hierarchy.GetLogger("SuccessLogger");
             successLogger.Additivity = false; // Prevent log bubbling to root
             successLogger.Level = Level.Info;
+            if (_prevSuccess != null) { successLogger.RemoveAppender(_prevSuccess); _prevSuccess.Close(); }
             successLogger.AddAppender(successAppender);
+            _prevSuccess = successAppender;
 
             // === FAILED LOGGER ===
             var failedAppender = new RollingFileAppender
@@ -69,7 +79,9 @@ namespace OrganizationImportTool
             var failedLogger = (log4net.Repository.Hierarchy.Logger)hierarchy.GetLogger("FailedLogger");
             failedLogger.Additivity = false;
             failedLogger.Level = Level.Info;
+            if (_prevFailed != null) { failedLogger.RemoveAppender(_prevFailed); _prevFailed.Close(); }
             failedLogger.AddAppender(failedAppender);
+            _prevFailed = failedAppender;
 
             hierarchy.Configured = true;
 

@@ -42,7 +42,9 @@ namespace OrganizationImportTool.Transform
         {
             string[] formats =
             {
-                "yyyy-MM-dd", "dd/MM/yyyy", "d/M/yyyy", "MM/dd/yyyy", "M/d/yyyy",
+                // ISO and unambiguous formats first, then month-first (MM/dd) before day-first (dd/MM)
+                // so US-locale files are parsed correctly; ambiguous dates like 01/02/2024 become Jan 2.
+                "yyyy-MM-dd", "MM/dd/yyyy", "M/d/yyyy", "dd/MM/yyyy", "d/M/yyyy",
                 "dd-MM-yyyy", "dd.MM.yyyy", "yyyy/MM/dd", "dd MMM yyyy", "d MMM yyyy",
                 "dd-MMM-yyyy", "yyyyMMdd", "MMM d, yyyy", "MMMM d, yyyy"
             };

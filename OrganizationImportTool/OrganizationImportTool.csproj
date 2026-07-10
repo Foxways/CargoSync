@@ -2,7 +2,10 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net7.0-windows</TargetFramework>
+    <!-- windows10.0.19041 unlocks the in-box WinRT APIs (Windows.Media.Ocr) used as the
+         offline fallback for scanned PDFs/images; the app still runs on Windows 10 1809+. -->
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>appicon.ico</ApplicationIcon>
@@ -12,7 +15,7 @@
     <Company>Kishan Manohar</Company>
     <Authors>Kishan Manohar (kishanmanohar@gmail.com)</Authors>
     <Description>CargoSync - CargoWise Organization Importer</Description>
-    <Copyright>Copyright (c) 2026 Kishan Manohar - MIT License</Copyright>
+    <Copyright>Copyright (c) 2025 Kishan Manohar - MIT License</Copyright>
     <Version>1.0.0</Version>
     <FileVersion>1.0.0.0</FileVersion>
     <AssemblyVersion>1.0.0.0</AssemblyVersion>
@@ -21,10 +24,14 @@
   <ItemGroup>
     <PackageReference Include="ClosedXML" Version="0.104.2" />
     <PackageReference Include="Dapper" Version="2.1.66" />
-    <PackageReference Include="log4net" Version="3.0.4" />
+    <PackageReference Include="Docnet.Core" Version="2.6.0" />
+    <PackageReference Include="log4net" Version="3.3.1" />
     <PackageReference Include="System.Data.SQLite" Version="1.0.119" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="8.0.0" />
     <PackageReference Include="Guna.UI2.WinForms" Version="2.0.4.7" />
+    <PackageReference Include="MailKit" Version="4.17.0" />
+    <PackageReference Include="SSH.NET" Version="2024.2.0" />
+    <PackageReference Include="FluentFTP" Version="51.0.0" />
   </ItemGroup>
 
   <ItemGroup>

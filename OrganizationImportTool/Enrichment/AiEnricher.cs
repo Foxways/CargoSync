@@ -31,12 +31,15 @@ namespace OrganizationImportTool.Enrichment
             if (!IsAvailable) return suggestions;
 
             // Rows with a city but no country → infer the country code from the city.
+            // Cap at 80 cities per call to stay within the 600-token output budget (matches PostalEnricher).
+            const int MaxCitiesPerBatch = 80;
             var cities = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var rv in rows)
             {
                 string city = AddressPaths.Get(rv.Values, AddressPaths.City);
                 if (city.Length > 0 && AddressPaths.Empty(rv.Values, AddressPaths.Country))
                     cities.Add(city);
+                if (cities.Count >= MaxCitiesPerBatch) break;
             }
             if (cities.Count == 0) return suggestions;
 

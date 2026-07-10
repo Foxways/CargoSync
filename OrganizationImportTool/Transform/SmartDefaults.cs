@@ -79,7 +79,9 @@ namespace OrganizationImportTool.Transform
                     var m = Regex.Match(resp.Text.ToUpperInvariant(), @"\b[A-Z]{2}[A-Z0-9]{3}\b");
                     if (m.Success && !resp.Text.ToUpperInvariant().Contains("NONE")) result = m.Value;
                 }
-                lock (_cacheLock) { _aiCache[key] = result; }
+                // Only cache non-empty results — a null/empty means "AI didn't know"; don't freeze that answer forever.
+                if (!string.IsNullOrEmpty(result))
+                    lock (_cacheLock) { _aiCache[key] = result; }
                 return result;
             }
             catch { return null; }

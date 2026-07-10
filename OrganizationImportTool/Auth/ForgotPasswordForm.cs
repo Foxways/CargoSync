@@ -27,7 +27,7 @@ namespace OrganizationImportTool.Auth
         private void BuildUi()
         {
             Text = "Forgot password";
-            ClientSize = new Size(460, 660);
+            ClientSize = new Size(460, 660); // height corrected below once the rows are laid out
             FormBorderStyle = FormBorderStyle.FixedDialog;
             StartPosition = FormStartPosition.CenterParent;
             MaximizeBox = false; MinimizeBox = false;
@@ -95,6 +95,15 @@ namespace OrganizationImportTool.Auth
 
             card.Controls.Add(tl);
             Controls.Add(card);
+
+            // Height = exactly what the rows need. The fixed 660 was 34px short, which cut the
+            // Close button off the bottom (and more on DPI-scaled screens, where the title row
+            // grows via LogicalToDeviceUnits but a hardcoded height does not).
+            int rowsHeight = 0;
+            foreach (RowStyle rs in tl.RowStyles)
+                if (rs.SizeType == SizeType.Absolute) rowsHeight += (int)rs.Height;
+            ClientSize = new Size(ClientSize.Width, rowsHeight + card.Padding.Top + card.Padding.Bottom);
+
             CancelButton = close;
             ApplyMode();
             FormAnimator.FadeIn(this);

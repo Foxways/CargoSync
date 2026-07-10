@@ -22,13 +22,13 @@ namespace OrganizationImportTool.Pipeline
     public sealed class WinFormsPipelineUi : IPipelineUi
     {
         private readonly Form _owner;
-        private readonly TextBox _logBox;
+        private readonly RichTextBox _logBox;
         private readonly Label _status;
         private readonly Guna2ProgressBar _progress;
         private readonly Func<bool> _isPaused;
         private readonly AiRouter? _aiRouter;
 
-        public WinFormsPipelineUi(Form owner, TextBox logBox, Label status, Guna2ProgressBar progress,
+        public WinFormsPipelineUi(Form owner, RichTextBox logBox, Label status, Guna2ProgressBar progress,
             Func<bool> isPaused, AiRouter? aiRouter)
         {
             _owner = owner;
@@ -48,20 +48,30 @@ namespace OrganizationImportTool.Pipeline
             return Task.FromResult(mapForm.ShowDialog(_owner) == DialogResult.OK ? mapForm.ConfirmedResult : null);
         }
 
-        public Task<bool> ConfirmProfileAsync(ProfileReport report)
+        /// <summary>Back buttons on the review forms return DialogResult.Retry.</summary>
+        private static GateNav ToNav(DialogResult r) => r switch
+        {
+            DialogResult.OK => GateNav.Proceed,
+            DialogResult.Retry => GateNav.Back,
+            _ => GateNav.Cancel
+        };
+
+        public Task<GateNav> ConfirmProfileAsync(ProfileReport report)
         {
             using var dash = new ProfileDashboardForm(report);
-            Ui.StepBanner.Attach(dash, 2, 6, "Data health check", helpTopicId: "step-profile");
-            return Task.FromResult(dash.ShowDialog(_owner) == DialogResult.OK);
+            Ui.StepBanner.Attach(dash, 2, 6, "Data health check",
+                "← Back returns to the column mapping.", "step-profile");
+            return Task.FromResult(ToNav(dash.ShowDialog(_owner)));
         }
 
         public Task<DuplicateDecision> ReviewDuplicatesAsync(List<DuplicateGroup> groups)
         {
             using var dlg = new DuplicateReviewForm(groups);
             Ui.StepBanner.Attach(dlg, 3, 6, "Review possible duplicates",
-                "This step only appears when duplicates were found. Cancel stops the whole import.", "step-duplicates");
-            if (dlg.ShowDialog(_owner) != DialogResult.OK)
-                return Task.FromResult(new DuplicateDecision { Cancelled = true });
+                "This step only appears when duplicates were found. ← Back returns to the data health check.", "step-duplicates");
+            var nav = ToNav(dlg.ShowDialog(_owner));
+            if (nav != GateNav.Proceed)
+                return Task.FromResult(new DuplicateDecision { Cancelled = nav == GateNav.Cancel, Back = nav == GateNav.Back });
             return Task.FromResult(new DuplicateDecision
             {
                 SkipDuplicates = dlg.SkipDuplicates,
@@ -69,20 +79,26 @@ namespace OrganizationImportTool.Pipeline
             });
         }
 
-        public Task<bool> ReviewCleaningAsync(List<CleaningChange> changes)
+        public Task<GateNav> ReviewCleaningAsync(List<CleaningChange> changes)
         {
             using var dlg = new DataCleaningForm(changes);
             Ui.StepBanner.Attach(dlg, 4, 6, "Review data cleaning",
-                "Only ticked fixes are applied — your data is sent as-is by default. Cancel stops the whole import.", "step-cleaning");
-            return Task.FromResult(dlg.ShowDialog(_owner) == DialogResult.OK);
+                "Only ticked fixes are applied — your data is sent as-is by default. ← Back returns to the previous step.", "step-cleaning");
+            return Task.FromResult(ToNav(dlg.ShowDialog(_owner)));
         }
 
-        public Task<bool> ReviewEnrichmentAsync(List<EnrichmentSuggestion> suggestions)
+        public Task<GateNav> ReviewEnrichmentAsync(List<EnrichmentSuggestion> suggestions)
         {
             using var dlg = new EnrichmentReviewForm(suggestions);
             Ui.StepBanner.Attach(dlg, 5, 6, "Fill empty fields",
-                "Only empty fields are ever filled, and only the ones you tick. Cancel stops the whole import.", "step-enrichment");
-            return Task.FromResult(dlg.ShowDialog(_owner) == DialogResult.OK);
+                "Only empty fields are ever filled, and only the ones you tick. ← Back returns to the previous step.", "step-enrichment");
+            return Task.FromResult(ToNav(dlg.ShowDialog(_owner)));
+        }
+
+        public Task<GateNav> ConfirmSendAsync(int rowsToSend, int totalRows, bool dryRun, string environment, string clientName)
+        {
+            using var dlg = new ConfirmSendForm(rowsToSend, totalRows, dryRun, environment, clientName);
+            return Task.FromResult(ToNav(dlg.ShowDialog(_owner)));
         }
 
         public Task<ResumeChoice> ConfirmResumeAsync(int alreadyImported, int totalRows, string? crashedRunDescription)
@@ -104,9 +120,21 @@ namespace OrganizationImportTool.Pipeline
             });
         }
 
-        public void Log(string line) => _logBox.AppendText(line + "\r\n");
+        public void Log(string line)
+        {
+            if (_logBox.InvokeRequired)
+                _logBox.BeginInvoke((Action)(() => _logBox.AppendText(line + "\r\n")));
+            else
+                _logBox.AppendText(line + "\r\n");
+        }
 
-        public void Status(string text) => _status.Text = text;
+        public void Status(string text)
+        {
+            if (_status.InvokeRequired)
+                _status.BeginInvoke((Action)(() => _status.Text = text));
+            else
+                _status.Text = text;
+        }
 
         public void Progress(int current, int total)
         {

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -81,11 +81,12 @@ namespace OrganizationImportTool.Enrichment
             };
             _grid.DataError += (s, e) => { e.ThrowException = false; };
 
-            var none = GunaUi.Button("Untick all", primary: false); none.Size = new Size(120, 40); none.Click += (s, e) => SetAll(false);
-            var all = GunaUi.Button("Tick all", primary: false); all.Size = new Size(110, 40); all.Margin = new Padding(8, 0, 0, 0); all.Click += (s, e) => SetAll(true);
-            var apply = GunaUi.Button("Continue", primary: true); apply.Size = new Size(150, 40); apply.DialogResult = DialogResult.OK;
-            var cancel = GunaUi.Button("Cancel import", primary: false); cancel.Size = new Size(150, 40); cancel.DialogResult = DialogResult.Cancel; cancel.Margin = new Padding(10, 0, 0, 0);
-            var bottom = GunaUi.ButtonBar(new Control[] { apply, cancel }, new Control[] { none, all });
+            var none = GunaUi.Button("Untick all", primary: false); none.Size = new Size(TextRenderer.MeasureText(none.Text, none.Font).Width + 60, 34); none.Click += (s, e) => SetAll(false);
+            var all = GunaUi.Button("Tick all", primary: false); all.Size = new Size(TextRenderer.MeasureText(all.Text, all.Font).Width + 60, 34); all.Margin = new Padding(8, 0, 0, 0); all.Click += (s, e) => SetAll(true);
+            var apply = GunaUi.Button("Continue", primary: true); apply.Size = new Size(TextRenderer.MeasureText(apply.Text, apply.Font).Width + 60, 34); apply.DialogResult = DialogResult.OK;
+            var back = GunaUi.Button("← Back", primary: false); back.Size = new Size(TextRenderer.MeasureText(back.Text, back.Font).Width + 60, 34); back.DialogResult = DialogResult.Retry; back.Margin = new Padding(10, 0, 0, 0);
+            var cancel = GunaUi.Button("Cancel import", primary: false); cancel.Size = new Size(TextRenderer.MeasureText(cancel.Text, cancel.Font).Width + 60, 34); cancel.DialogResult = DialogResult.Cancel; cancel.Margin = new Padding(10, 0, 0, 0);
+            var bottom = GunaUi.ButtonBar(new Control[] { apply, cancel, back }, new Control[] { none, all });
 
             Controls.Add(_grid);
             Controls.Add(bottom);

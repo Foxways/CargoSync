@@ -165,6 +165,31 @@ namespace OrganizationImportTool.Pipeline
                     }
                 }
 
+                // 2a-bis) Saved templates: when one the operator saved matches this file's headers
+                // strongly, apply it automatically (operator-curated beats heuristics). The mapping
+                // gate still shows the result, so nothing is hidden - just pre-done.
+                try
+                {
+                    MappingTemplate? bestTpl = null;
+                    double bestRatio = 0;
+                    foreach (var tpl in _templates.ForClient(req.ClientId))
+                    {
+                        var headerEntries = tpl.Entries.Where(en => !en.IsConstant && !string.IsNullOrEmpty(en.SourceHeader)).ToList();
+                        if (headerEntries.Count == 0) continue;
+                        int hits = headerEntries.Count(en => table.Headers.Contains(en.SourceHeader!, StringComparer.OrdinalIgnoreCase));
+                        double ratio = (double)hits / headerEntries.Count;
+                        bool clientBeatsGlobal = ratio == bestRatio && tpl.ClientId != null && bestTpl?.ClientId == null;
+                        if (ratio >= 0.8 && (ratio > bestRatio || clientBeatsGlobal)) { bestTpl = tpl; bestRatio = ratio; }
+                    }
+                    if (bestTpl != null)
+                    {
+                        TemplateMapper.Apply(bestTpl, table, _contract, mapping);
+                        _ui.Log($"Auto-applied saved template '{bestTpl.Name}' ({bestRatio:P0} of its columns match this file) — review it at the mapping step.");
+                        importLog?.Note($"Saved template '{bestTpl.Name}' auto-applied ({bestRatio:P0} header match).");
+                    }
+                }
+                catch (Exception tplEx) { _ui.Log($"Template auto-apply skipped: {tplEx.Message}"); }
+
                 // 2b) Optional AI refinement of low-confidence / unmapped columns.
                 if (_ai?.IsConfigured == true)
                 {
@@ -173,7 +198,7 @@ namespace OrganizationImportTool.Pipeline
                         _ui.Status("Asking AI to refine mapping...");
                         var advisor = new AiMappingAdvisor(_ai, _aiSettings.UseAiForLowConfidenceOnly);
                         mapping = await advisor.RefineAsync(table, mapping, _contract, token);
-                        _ui.Log($"AI refined {advisor.LastChangedCount} column mapping(s) using {_ai.Current.ProviderName}.");
+                        _ui.Log($"AI refined {advisor.LastChangedCount} column mapping(s) using {_ai.Current?.ProviderName ?? "unknown"}.");
                     }
                     catch (Exception aiEx)
                     {
@@ -181,7 +206,25 @@ namespace OrganizationImportTool.Pipeline
                     }
                 }
 
+                // ---- Wizard state. The labelled steps below support Back/Forward navigation:
+                // each step recomputes its inputs on entry, so going back to an earlier decision
+                // re-derives everything that follows from it. goto keeps the linear stage code
+                // intact - a classic wizard state machine.
+                List<ColumnMapping> includedCols = new();
+                List<RowValues> rowValues = new();
+                var dupGroups = new List<DuplicateGroup>();
+                string fileHash = string.Empty;
+                var skipAlreadyImported = new HashSet<int>();
+                var skipRowNums = new HashSet<int>();
+                var dupReasonByRow = new Dictionary<int, string>();
+                var cleanedByRow = new Dictionary<int, Dictionary<string, string>>();
+                var enrichedByRow = new Dictionary<int, Dictionary<string, string>>();
+                string? lastResumeKey = null;
+                bool movingBack = false;
+
+            StepMapping:
                 // 3) MANDATORY user-validation gate - operator confirms/overrides every mapping.
+                // (After "Back" this re-opens with the operator's previous confirmation intact.)
                 var confirmed = await _ui.ConfirmMappingAsync(_contract, table, mapping, req.ClientId, _templates);
                 if (confirmed == null)
                 {
@@ -196,7 +239,7 @@ namespace OrganizationImportTool.Pipeline
                 // 3b) Self-learning: remember exactly what the operator confirmed for this client,
                 // folding it into the accumulating memory so the next file maps itself.
                 // Skipped on a dry run — a preview must not mutate the client's learned memory.
-                if (req.LearnMapping)
+                if (req.LearnMapping && !req.DryRun)
                 {
                     try
                     {
@@ -211,17 +254,18 @@ namespace OrganizationImportTool.Pipeline
                     }
                 }
 
-                var includedCols = mapping.Columns
+            StepProfile:
+                includedCols = mapping.Columns
                     .Where(c => c.Include && !string.IsNullOrEmpty(c.TargetPath))
                     .ToList();
 
                 // Build each row's mapped values once - shared by dedup and data-cleaning pre-passes.
-                var rowValues = table.Rows
+                rowValues = table.Rows
                     .Select(r => new RowValues { RowNumber = r.RowNumber, Values = BuildRowValues(r, includedCols, mapping) })
                     .ToList();
 
                 // Pre-flight scans (cheap, deterministic) feed the profile dashboard's risk picture.
-                var dupGroups = new List<DuplicateGroup>();
+                dupGroups = new List<DuplicateGroup>();
                 try
                 {
                     var keys = rowValues.Select(rv => new OrgKey
@@ -264,10 +308,13 @@ namespace OrganizationImportTool.Pipeline
                 // Resume gate: offer to skip rows that already went through (this also covers a
                 // previous run of this exact file that crashed mid-way - detected via the run
                 // journal). Skipping protects against duplicate orgs when CargoWise regenerates codes.
-                string fileHash = HashFile(req.FilePath);
-                var skipAlreadyImported = new HashSet<int>();
-                if (!req.DryRun && alreadySynced > 0)
+                // Asked once per distinct already-imported set, so Back/Forward doesn't re-prompt.
+                fileHash = HashFile(req.FilePath);
+                string resumeKey = string.Join(",", alreadyImportedRows.OrderBy(x => x));
+                if (!req.DryRun && alreadySynced > 0 && resumeKey != lastResumeKey)
                 {
+                    lastResumeKey = resumeKey;
+                    skipAlreadyImported = new HashSet<int>();
                     string? crashDesc = null;
                     var incomplete = fileHash.Length > 0 ? _feedback.FindIncompleteRun(req.ClientId, fileHash) : null;
                     if (incomplete != null)
@@ -334,7 +381,8 @@ namespace OrganizationImportTool.Pipeline
                     }
                     catch (Exception lex) { AppLog.Warn("Lessons-learned check failed", lex); }
 
-                    if (!await _ui.ConfirmProfileAsync(report))
+                    var profileNav = await _ui.ConfirmProfileAsync(report);
+                    if (profileNav == GateNav.Cancel)
                     {
                         _ui.Log("Import cancelled at data profile. Nothing was sent.");
                         _ui.Status("Cancelled");
@@ -342,12 +390,20 @@ namespace OrganizationImportTool.Pipeline
                         result.CancelledAtStage = "profile";
                         return result;
                     }
+                    if (profileNav == GateNav.Back)
+                    {
+                        _ui.Log("Going back to the column-mapping step.");
+                        goto StepMapping;
+                    }
                 }
                 catch (Exception profEx) { _ui.Log($"Profile skipped: {profEx.Message}"); }
+                movingBack = false;
 
+            StepDuplicates:
                 // 3d) Fuzzy dedup review.
-                var skipRowNums = new HashSet<int>();
-                var dupReasonByRow = new Dictionary<int, string>();
+                skipRowNums = new HashSet<int>();
+                dupReasonByRow = new Dictionary<int, string>();
+                if (dupGroups.Count == 0 && movingBack) goto StepProfile; // nothing to review on the way back
                 if (dupGroups.Count > 0)
                 {
                     int extras = dupGroups.Sum(g => g.Extras.Count());
@@ -363,6 +419,12 @@ namespace OrganizationImportTool.Pipeline
                         result.CancelledAtStage = "duplicates";
                         return result;
                     }
+                    if (decision.Back)
+                    {
+                        _ui.Log("Going back to the data health check.");
+                        goto StepProfile;
+                    }
+                    movingBack = false;
                     if (decision.SkipDuplicates)
                     {
                         skipRowNums = decision.RowsToSkip;
@@ -377,8 +439,9 @@ namespace OrganizationImportTool.Pipeline
                     }
                 }
 
+            StepCleaning:
                 // 3e) AI data cleaning + Auto-Fix: normalise values (and let AI resolve the rest) before sending.
-                var cleanedByRow = new Dictionary<int, Dictionary<string, string>>();
+                cleanedByRow = new Dictionary<int, Dictionary<string, string>>();
                 try
                 {
                     // Only clean rows that will actually be sent (skip dedup-dropped rows).
@@ -394,7 +457,8 @@ namespace OrganizationImportTool.Pipeline
                             _ui.Log($"Data cleaning: {changes.Count} suggested fix(es){(aiCount > 0 ? $" ({aiCount} from AI)" : "")}.");
                             importLog?.Note($"Data cleaning: {changes.Count} suggested fix(es), {aiCount} from AI.");
 
-                            if (!await _ui.ReviewCleaningAsync(changes))
+                            var cleanNav = await _ui.ReviewCleaningAsync(changes);
+                            if (cleanNav == GateNav.Cancel)
                             {
                                 _ui.Log("Import cancelled at data-cleaning review. Nothing was sent.");
                                 _ui.Status("Cancelled");
@@ -402,6 +466,13 @@ namespace OrganizationImportTool.Pipeline
                                 result.CancelledAtStage = "cleaning";
                                 return result;
                             }
+                            if (cleanNav == GateNav.Back)
+                            {
+                                _ui.Log("Going back to the previous step.");
+                                movingBack = true;
+                                goto StepDuplicates;
+                            }
+                            movingBack = false;
                             cleanedByRow = DataCleaner.AcceptedOverrides(changes);
                             int applied = cleanedByRow.Sum(kv => kv.Value.Count);
                             _ui.Log($"Data cleaning: applying {applied} accepted fix(es).");
@@ -412,9 +483,11 @@ namespace OrganizationImportTool.Pipeline
                 {
                     _ui.Log($"Data cleaning skipped: {cleanEx.Message}");
                 }
+                if (movingBack) goto StepDuplicates; // no cleaning to review on the way back
 
+            StepEnrichment:
                 // 3f) Enrichment APIs: fill EMPTY fields from external sources (Postal API + AI).
-                var enrichedByRow = new Dictionary<int, Dictionary<string, string>>();
+                enrichedByRow = new Dictionary<int, Dictionary<string, string>>();
                 try
                 {
                     // Enrich on the cleaned view (the Postal API needs the cleaned 2-letter country code).
@@ -437,7 +510,8 @@ namespace OrganizationImportTool.Pipeline
                             _ui.Log($"Enrichment: {suggestions.Count} empty field(s) can be filled ({apiN} Postal API, {aiN} AI).");
                             importLog?.Note($"Enrichment: {suggestions.Count} suggestion(s) ({apiN} API, {aiN} AI).");
 
-                            if (!await _ui.ReviewEnrichmentAsync(suggestions))
+                            var enrichNav = await _ui.ReviewEnrichmentAsync(suggestions);
+                            if (enrichNav == GateNav.Cancel)
                             {
                                 _ui.Log("Import cancelled at enrichment review. Nothing was sent.");
                                 _ui.Status("Cancelled");
@@ -445,6 +519,13 @@ namespace OrganizationImportTool.Pipeline
                                 result.CancelledAtStage = "enrichment";
                                 return result;
                             }
+                            if (enrichNav == GateNav.Back)
+                            {
+                                _ui.Log("Going back to the previous step.");
+                                movingBack = true;
+                                goto StepCleaning;
+                            }
+                            movingBack = false;
                             enrichedByRow = EnrichmentService.AcceptedOverrides(suggestions);
                             _ui.Log($"Enrichment: filling {enrichedByRow.Sum(kv => kv.Value.Count)} accepted field(s).");
                         }
@@ -454,10 +535,30 @@ namespace OrganizationImportTool.Pipeline
                 {
                     _ui.Log($"Enrichment skipped: {enrichEx.Message}");
                 }
+                if (movingBack) goto StepCleaning; // no enrichment to review on the way back
+
+                // Final gate: nothing is transmitted until the operator explicitly presses
+                // "Send to CargoWise" (or starts the dry-run simulation). Back returns to the reviews.
+                int rowsToSend = table.Rows.Count(r => !skipRowNums.Contains(r.RowNumber) && !skipAlreadyImported.Contains(r.RowNumber));
+                var sendNav = await _ui.ConfirmSendAsync(rowsToSend, table.RowCount, req.DryRun, req.Environment, req.ClientName);
+                if (sendNav == GateNav.Cancel)
+                {
+                    _ui.Log("Import cancelled at the final send confirmation. Nothing was sent.");
+                    _ui.Status("Cancelled");
+                    result.Cancelled = true;
+                    result.CancelledAtStage = "send-confirm";
+                    return result;
+                }
+                if (sendNav == GateNav.Back)
+                {
+                    _ui.Log("Going back to the previous step.");
+                    movingBack = true;
+                    goto StepEnrichment;
+                }
 
                 _ui.Log(req.DryRun
-                    ? $"Confirmed {includedCols.Count} field mappings. Simulating {table.RowCount} organizations (no send)..."
-                    : $"Confirmed {includedCols.Count} field mappings. Sending {table.RowCount} organizations...");
+                    ? $"Confirmed {includedCols.Count} field mappings. Simulating {rowsToSend} organization(s) (no send)..."
+                    : $"Confirmed {includedCols.Count} field mappings. Sending {rowsToSend} organization(s)...");
                 importLog?.Mapping(mapping.Columns, mapping.Constants);
 
                 // 4) Build Native XML per row and submit to eAdaptor.
@@ -617,7 +718,8 @@ namespace OrganizationImportTool.Pipeline
                     if (throttleMs > 0)
                     {
                         _ui.Status($"Sent {counter}/{table.RowCount} — easing off {throttleMs} ms to avoid blocking…");
-                        await Task.Delay(throttleMs);
+                        try { await Task.Delay(throttleMs, token); }
+                        catch (OperationCanceledException) { break; }
                     }
                 }
 

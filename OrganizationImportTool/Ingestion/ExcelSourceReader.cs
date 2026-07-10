@@ -51,7 +51,7 @@ namespace OrganizationImportTool.Ingestion
             var colHeaders = new List<(int col, string header)>();
             for (int col = firstCol; col <= lastCol; col++)
             {
-                string raw = worksheet.Cell(headerRowNum, col).GetString().Trim();
+                string raw = GetCellValue(worksheet, headerRowNum, col);
                 if (string.IsNullOrEmpty(raw))
                     raw = $"Column{col}";
 
@@ -77,7 +77,7 @@ namespace OrganizationImportTool.Ingestion
                 bool any = false;
                 foreach (var (col, header) in colHeaders)
                 {
-                    string value = worksheet.Cell(r, col).GetString().Trim();
+                    string value = GetCellValue(worksheet, r, col);
                     row[header] = value;
                     if (!string.IsNullOrEmpty(value)) any = true;
                 }
@@ -87,6 +87,21 @@ namespace OrganizationImportTool.Ingestion
             }
 
             return table;
+        }
+
+        /// <summary>
+        /// Reads a cell value, following merged-cell ranges so non-primary merged cells
+        /// return the master cell's value instead of an empty string.
+        /// </summary>
+        private static string GetCellValue(IXLWorksheet ws, int row, int col)
+        {
+            var cell = ws.Cell(row, col);
+            if (cell.IsMerged())
+            {
+                var merge = ws.MergedRanges.FirstOrDefault(r => r.Contains(cell));
+                if (merge != null) cell = merge.FirstCell();
+            }
+            return cell.GetString().Trim();
         }
 
         /// <summary>
@@ -104,7 +119,7 @@ namespace OrganizationImportTool.Ingestion
                 int nonEmpty = 0, textual = 0;
                 for (int c = firstCol; c <= lastCol; c++)
                 {
-                    string v = ws.Cell(r, c).GetString().Trim();
+                    string v = GetCellValue(ws, r, c);
                     if (string.IsNullOrEmpty(v)) continue;
                     nonEmpty++;
                     // Header cells are usually short labels, not pure numbers.

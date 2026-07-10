@@ -1,4 +1,6 @@
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 
 namespace OrganizationImportTool.Mapping
 {
@@ -97,12 +99,63 @@ namespace OrganizationImportTool.Mapping
         /// <summary>No-code IF-THEN rules applied per row before validation/send.</summary>
         public List<TransformRule> Rules { get; set; } = new List<TransformRule>();
 
-        /// <summary>Apply a target's value-map (if any) to a raw cell value; pass-through when no map/match.</summary>
+        /// <summary>
+        /// Apply a target's value-map to a raw cell value. Resolution order: (1) exact match
+        /// (case-insensitive); (2) pattern entries - a key of <c>regex:PATTERN</c> matches by regular
+        /// expression, a key containing <c>*</c>/<c>?</c> matches as a wildcard glob; (3) a <c>*</c>
+        /// catch-all default. Pass-through when nothing matches. The dictionary shape is unchanged, so
+        /// existing saved templates keep working.
+        /// </summary>
         public string ApplyValueMap(string targetPath, string raw)
         {
-            if (ValueMaps.TryGetValue(targetPath, out var map) && map.TryGetValue(raw.Trim(), out var mapped))
-                return mapped;
+            if (!ValueMaps.TryGetValue(targetPath, out var map) || map.Count == 0) return raw;
+            string key = raw.Trim();
+
+            // 1. exact match (the map uses an ordinal-ignore-case comparer)
+            if (map.TryGetValue(key, out var exact)) return exact;
+
+            // 2. pattern entries (regex: or glob with * / ?), first match wins
+            foreach (var kv in map)
+            {
+                string src = kv.Key;
+                if (src == "*") continue; // the catch-all default is handled below
+                if (src.StartsWith("regex:", System.StringComparison.OrdinalIgnoreCase))
+                {
+                    if (RegexMatch(src.Substring(6), key)) return kv.Value;
+                }
+                else if (src.IndexOf('*') >= 0 || src.IndexOf('?') >= 0)
+                {
+                    if (GlobMatch(src, key)) return kv.Value;
+                }
+            }
+
+            // 3. catch-all default
+            if (map.TryGetValue("*", out var fallback)) return fallback;
+
             return raw;
+        }
+
+        // Compiled Regex cache: avoids allocating a new Regex per cell per row for value-map patterns.
+        private static readonly ConcurrentDictionary<string, Regex> _regexCache =
+            new ConcurrentDictionary<string, Regex>(System.StringComparer.OrdinalIgnoreCase);
+
+        private static bool RegexMatch(string pattern, string input)
+        {
+            try
+            {
+                var rx = _regexCache.GetOrAdd(pattern, p =>
+                    new Regex(p, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled,
+                        System.TimeSpan.FromMilliseconds(200)));
+                return rx.IsMatch(input);
+            }
+            catch { return false; } // a malformed pattern simply never matches
+        }
+
+        private static bool GlobMatch(string glob, string input)
+        {
+            string pattern = "^" + System.Text.RegularExpressions.Regex.Escape(glob)
+                .Replace("\\*", ".*").Replace("\\?", ".") + "$";
+            return RegexMatch(pattern, input);
         }
     }
 }

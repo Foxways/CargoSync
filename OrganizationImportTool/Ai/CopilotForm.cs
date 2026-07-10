@@ -94,7 +94,7 @@ namespace OrganizationImportTool.Ai
 
         private Guna2Button Chip(string text)
         {
-            var b = new Guna2Button
+            var b = new GunaUi.GlossButton
             {
                 Text = text, AutoSize = false, Size = new Size(Math.Max(86, TextRenderer.MeasureText(text, AppleTheme.Body).Width + 22), 32),
                 FillColor = AppleTheme.SecondaryFill, ForeColor = AppleTheme.TextPrimary, Font = AppleTheme.Body,

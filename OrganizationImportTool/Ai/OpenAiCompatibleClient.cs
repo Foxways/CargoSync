@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net.Http;
 using System.Text;
@@ -36,7 +37,7 @@ namespace OrganizationImportTool.Ai
                     messages = new object[]
                     {
                         new { role = "system", content = request.System },
-                        new { role = "user", content = request.Prompt }
+                        new { role = "user", content = BuildUserContent(request) }
                     }
                 };
 
@@ -94,6 +95,33 @@ namespace OrganizationImportTool.Ai
             {
                 return Fail(ex.Message, sw.ElapsedMilliseconds);
             }
+        }
+
+        /// <summary>PDF "document" blocks are an Anthropic wire-format feature; images work everywhere.</summary>
+        public bool Supports(AiRequest request)
+        {
+            foreach (var att in request.Attachments)
+                if (att.Kind == AiAttachmentKind.Pdf) return false;
+            return true;
+        }
+
+        /// <summary>
+        /// Plain string for text-only requests (unchanged behaviour); multimodal content-part
+        /// array (text + data-URI image_url parts) when image attachments are present.
+        /// </summary>
+        private static object BuildUserContent(AiRequest request)
+        {
+            if (request.Attachments.Count == 0) return request.Prompt;
+
+            var parts = new List<object>();
+            foreach (var att in request.Attachments)
+                parts.Add(new
+                {
+                    type = "image_url",
+                    image_url = new { url = $"data:{att.MediaType};base64,{att.Base64Data}" }
+                });
+            parts.Add(new { type = "text", text = request.Prompt });
+            return parts;
         }
 
         private AiResponse Fail(string error, long ms)

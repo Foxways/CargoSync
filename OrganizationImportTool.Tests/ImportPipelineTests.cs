@@ -12,44 +12,72 @@ using Xunit;
 
 namespace OrganizationImportTool.Tests
 {
-    /// <summary>Scriptable pipeline driver: approves every gate unless told to cancel one.</summary>
+    /// <summary>Scriptable pipeline driver: approves every gate unless told to cancel one or go back.</summary>
     internal sealed class FakePipelineUi : IPipelineUi
     {
-        public string? CancelAtStage;            // "mapping" | "profile" | "duplicates" | "cleaning" | "enrichment"
+        public string? CancelAtStage;            // "mapping" | "profile" | "duplicates" | "cleaning" | "enrichment" | "send-confirm"
         public bool SkipDuplicates = true;
         public List<string> LogLines { get; } = new();
+
+        /// <summary>Stages to answer "Back" at, consumed one at a time (so the retry proceeds).</summary>
+        public Queue<string> BackAtStages { get; } = new();
+        public int MappingGateCalls;
+        public int ProfileGateCalls;
+        public int SendGateCalls;
+
+        private bool TakeBack(string stage)
+        {
+            if (BackAtStages.Count > 0 && BackAtStages.Peek() == stage) { BackAtStages.Dequeue(); return true; }
+            return false;
+        }
 
         public Task<MappingResult?> ConfirmMappingAsync(FieldContract contract, SourceTable table,
             MappingResult suggested, string clientId, TemplateStore templates)
         {
+            MappingGateCalls++;
             if (CancelAtStage == "mapping") return Task.FromResult<MappingResult?>(null);
             foreach (var c in suggested.Columns) c.Approved = true;
             return Task.FromResult<MappingResult?>(suggested);
         }
 
-        public Task<bool> ConfirmProfileAsync(ProfileReport report) => Task.FromResult(CancelAtStage != "profile");
+        public Task<GateNav> ConfirmProfileAsync(ProfileReport report)
+        {
+            ProfileGateCalls++;
+            if (CancelAtStage == "profile") return Task.FromResult(GateNav.Cancel);
+            return Task.FromResult(TakeBack("profile") ? GateNav.Back : GateNav.Proceed);
+        }
 
         public Task<DuplicateDecision> ReviewDuplicatesAsync(List<DuplicateGroup> groups)
         {
             if (CancelAtStage == "duplicates") return Task.FromResult(new DuplicateDecision { Cancelled = true });
+            if (TakeBack("duplicates")) return Task.FromResult(new DuplicateDecision { Back = true });
             var skip = new HashSet<int>();
             if (SkipDuplicates)
                 foreach (var g in groups) foreach (var ex in g.Extras) skip.Add(ex.RowNumber);
             return Task.FromResult(new DuplicateDecision { SkipDuplicates = SkipDuplicates, RowsToSkip = skip });
         }
 
-        public Task<bool> ReviewCleaningAsync(List<CleaningChange> changes)
+        public Task<GateNav> ReviewCleaningAsync(List<CleaningChange> changes)
         {
-            if (CancelAtStage == "cleaning") return Task.FromResult(false);
+            if (CancelAtStage == "cleaning") return Task.FromResult(GateNav.Cancel);
+            if (TakeBack("cleaning")) return Task.FromResult(GateNav.Back);
             foreach (var c in changes) c.Accept = true;
-            return Task.FromResult(true);
+            return Task.FromResult(GateNav.Proceed);
         }
 
-        public Task<bool> ReviewEnrichmentAsync(List<EnrichmentSuggestion> suggestions)
+        public Task<GateNav> ReviewEnrichmentAsync(List<EnrichmentSuggestion> suggestions)
         {
-            if (CancelAtStage == "enrichment") return Task.FromResult(false);
+            if (CancelAtStage == "enrichment") return Task.FromResult(GateNav.Cancel);
+            if (TakeBack("enrichment")) return Task.FromResult(GateNav.Back);
             foreach (var s in suggestions) s.Accept = true;
-            return Task.FromResult(true);
+            return Task.FromResult(GateNav.Proceed);
+        }
+
+        public Task<GateNav> ConfirmSendAsync(int rowsToSend, int totalRows, bool dryRun, string environment, string clientName)
+        {
+            SendGateCalls++;
+            if (CancelAtStage == "send-confirm") return Task.FromResult(GateNav.Cancel);
+            return Task.FromResult(TakeBack("send-confirm") ? GateNav.Back : GateNav.Proceed);
         }
 
         public ResumeChoice ResumeAnswer = ResumeChoice.SkipAlreadyImported;
@@ -139,6 +167,78 @@ namespace OrganizationImportTool.Tests
             Assert.Equal(2, client.SentXml.Count);
             Assert.Equal(2, feedback.CountForClient("TESTCLIENT"));
             Assert.NotNull(templates.GetAuto("TESTCLIENT")); // confirmed mapping was learned
+        }
+
+        [Fact]
+        public async Task Back_from_profile_reopens_mapping_then_completes()
+        {
+            WriteCsv("ACME001,Acme Imports,1 Test St,Sydney,AU");
+            var (pipeline, ui, client, _, _) = Build();
+            ui.BackAtStages.Enqueue("profile");
+
+            var result = await pipeline.RunAsync(Request(_csv.Path), CancellationToken.None);
+
+            Assert.False(result.Cancelled);
+            Assert.Equal(2, ui.MappingGateCalls);   // first pass + re-opened after Back
+            Assert.Equal(2, ui.ProfileGateCalls);
+            Assert.Single(client.SentXml);
+        }
+
+        [Fact]
+        public async Task Cancel_at_send_confirmation_sends_nothing()
+        {
+            WriteCsv("ACME001,Acme Imports,1 Test St,Sydney,AU");
+            var (pipeline, ui, client, _, _) = Build();
+            ui.CancelAtStage = "send-confirm";
+
+            var result = await pipeline.RunAsync(Request(_csv.Path), CancellationToken.None);
+
+            Assert.True(result.Cancelled);
+            Assert.Equal("send-confirm", result.CancelledAtStage);
+            Assert.Empty(client.SentXml);
+        }
+
+        [Fact]
+        public async Task Back_from_send_confirmation_walks_back_through_reviews_then_sends()
+        {
+            WriteCsv("ACME001,Acme Imports,1 Test St,Sydney,AU");
+            var (pipeline, ui, client, _, _) = Build();
+            ui.BackAtStages.Enqueue("send-confirm");
+
+            var result = await pipeline.RunAsync(Request(_csv.Path), CancellationToken.None);
+
+            Assert.False(result.Cancelled);
+            Assert.Equal(2, ui.SendGateCalls);      // backed out once, confirmed the second time
+            Assert.Equal(2, ui.ProfileGateCalls);   // walked back to the nearest shown step
+            Assert.Single(client.SentXml);
+        }
+
+        [Fact]
+        public async Task Saved_template_is_auto_applied_when_headers_match()
+        {
+            WriteCsv("ACME001,Acme Imports,1 Test St,Sydney,AU");
+            var (pipeline, ui, client, _, templates) = Build();
+            var tpl = new MappingTemplate
+            {
+                Name = "Standard client file",
+                ClientId = "TESTCLIENT",
+                Entries =
+                {
+                    new TemplateEntry { SourceHeader = "Account Code", TargetPath = "orgHeader.code" },
+                    new TemplateEntry { SourceHeader = "Company Name", TargetPath = "orgHeader.fullName" },
+                    new TemplateEntry { SourceHeader = "Street", TargetPath = "orgAddressCollection[].address1" },
+                    new TemplateEntry { SourceHeader = "Town", TargetPath = "orgAddressCollection[].city" },
+                    new TemplateEntry { SourceHeader = "Country", TargetPath = "orgAddressCollection[].countryCode.code" },
+                }
+            };
+            templates.Save(tpl, DateTime.UtcNow.ToString("o"));
+
+            var result = await pipeline.RunAsync(Request(_csv.Path), CancellationToken.None);
+
+            Assert.False(result.Cancelled);
+            Assert.Contains(ui.LogLines, l => l.Contains("Auto-applied saved template 'Standard client file'"));
+            Assert.Single(client.SentXml);
+            Assert.Contains("ACME001", client.SentXml[0]);
         }
 
         [Fact]

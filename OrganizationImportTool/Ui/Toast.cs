@@ -83,18 +83,31 @@ namespace OrganizationImportTool.Ui
             Restack(host, toasts);
 
             var life = new Timer { Interval = Math.Max(2500, durationMs) };
-            life.Tick += (s, e) => { life.Dispose(); Dismiss(host, card); };
+            life.Tick += (s, e) =>
+            {
+                life.Stop(); life.Dispose();
+                // Guard: host or card may be disposed before the timer fires
+                if (!host.IsDisposed && !card.IsDisposed) Dismiss(host, card);
+            };
             life.Start();
 
-            host.Resize += (s, e) => Restack(host, toasts);
+            // Track the resize handler so it can be removed when all toasts on this host are gone.
+            EventHandler resizeHandler = null!;
+            resizeHandler = (s, e) => { if (!host.IsDisposed) Restack(host, toasts); };
+            host.Resize += resizeHandler;
+            // Store handler reference on the card via Tag so Dismiss can unsubscribe it.
+            card.Tag = resizeHandler;
         }
 
         private static void Dismiss(Form host, Panel card)
         {
             if (!Active.TryGetValue(host, out var toasts)) return;
             toasts.Remove(card);
-            if (!card.IsDisposed) { host.Controls.Remove(card); card.Dispose(); }
-            Restack(host, toasts);
+            // Unsubscribe the per-card resize handler stored in Tag to prevent accumulation.
+            if (card.Tag is EventHandler resizeHandler)
+                host.Resize -= resizeHandler;
+            if (!host.IsDisposed && !card.IsDisposed) { host.Controls.Remove(card); card.Dispose(); }
+            if (!host.IsDisposed) Restack(host, toasts);
         }
 
         private static void Restack(Form host, List<Panel> toasts)

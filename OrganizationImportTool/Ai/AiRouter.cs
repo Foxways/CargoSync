@@ -67,11 +67,19 @@ namespace OrganizationImportTool.Ai
 
         public AiStatus Current { get; private set; } = new AiStatus();
 
+        /// <summary>
+        /// The most recently constructed router - an ambient handle for subsystems created too
+        /// deep to be wired explicitly (the AI-assisted file readers). A desktop session has one
+        /// real router; harness runs may replace it, which is the desired behaviour.
+        /// </summary>
+        public static AiRouter? Active { get; private set; }
+
         public AiRouter(AiSettings settings, TokenUsageStore usage)
         {
             _settings = settings;
             _usage = usage;
             _usage.Persist = settings.SaveTokenHistory;
+            Active = this;
         }
 
         public bool IsConfigured => _settings.Enabled && _settings.FallbackChain.Any();
@@ -137,6 +145,10 @@ namespace OrganizationImportTool.Ai
                 });
 
                 var client = AiClientFactory.Create(profile);
+
+                // Skip providers whose wire format can't carry this request (e.g. PDF attachments
+                // are Anthropic-only) - not a failure, so the breaker is untouched.
+                if (!client.Supports(request)) continue;
 
                 // Per-attempt timeout budget: an unreachable provider must never stall the pipeline
                 // for the full HTTP timeout. The linked CTS preserves outer (user Stop) cancellation.

@@ -94,9 +94,9 @@ namespace OrganizationImportTool.Ingestion
             double bestScore = -1;
             foreach (char d in CandidateDelimiters)
             {
-                // Count delimiter occurrences per line (ignoring quoted sections is approximated here
-                // for detection only; full parsing handles quotes properly).
-                var counts = sampleLines.Select(l => l.Count(ch => ch == d)).ToList();
+                // Count delimiters outside quoted sections only — embedded commas inside "..." would
+                // otherwise skew detection toward comma even for tab- or pipe-delimited files.
+                var counts = sampleLines.Select(l => StripQuotedSections(l).Count(ch => ch == d)).ToList();
                 double avg = counts.Average();
                 if (avg <= 0) continue;
                 // Prefer delimiters that appear often and consistently (low variance).
@@ -105,6 +105,34 @@ namespace OrganizationImportTool.Ingestion
                 if (score > bestScore) { bestScore = score; best = d; }
             }
             return best;
+        }
+
+        /// <summary>
+        /// Replaces all content inside RFC-4180 quoted fields with spaces so delimiter
+        /// counts are not skewed by embedded delimiters (e.g. commas inside "New York, NY").
+        /// </summary>
+        private static string StripQuotedSections(string line)
+        {
+            var sb = new StringBuilder(line.Length);
+            bool inQuotes = false;
+            for (int i = 0; i < line.Length; i++)
+            {
+                char ch = line[i];
+                if (inQuotes)
+                {
+                    if (ch == '"' && i + 1 < line.Length && line[i + 1] == '"')
+                        i++; // skip RFC-4180 escaped quote ("")
+                    else if (ch == '"')
+                        inQuotes = false;
+                    sb.Append(' '); // mask everything inside quotes
+                }
+                else
+                {
+                    if (ch == '"') inQuotes = true;
+                    sb.Append(ch);
+                }
+            }
+            return sb.ToString();
         }
 
         /// <summary>RFC-4180 parser: handles quoted fields with embedded delimiters, quotes ("") and newlines.</summary>

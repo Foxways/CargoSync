@@ -35,7 +35,7 @@ namespace OrganizationImportTool.Eadaptor
         public bool Simulated { get; set; }
 
         public bool IsSuccess => TransportOk && !NotSent && Status.Equals("PRS", StringComparison.OrdinalIgnoreCase);
-        public bool IsWarning => !NotSent && Status.Equals("WRN", StringComparison.OrdinalIgnoreCase);
+        public bool IsWarning => TransportOk && !NotSent && Status.Equals("WRN", StringComparison.OrdinalIgnoreCase);
 
         /// <summary>Dry-run row that passed local validation and is ready to send.</summary>
         public bool IsSimulatedOk => Simulated && !NotSent;

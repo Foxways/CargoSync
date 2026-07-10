@@ -39,9 +39,23 @@ namespace OrganizationImportTool.Ui
 
         public void Stop() { _timer.Stop(); Visible = false; }
 
+        /// <summary>
+        /// Color to fill behind the arc. Defaults to Surface so the spinner blends into log/card
+        /// backgrounds even when parented to Form (which has the darker Canvas color).
+        /// Set to Color.Transparent only when the spinner lives inside a truly transparent container.
+        /// </summary>
+        public Color BackgroundFill { get; set; } = AppleTheme.Surface;
+
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            // Clear with the explicit fill rather than copying the parent BackColor — this avoids the
+            // near-black Canvas bleed-through when the spinner is parented to Form1 but visually sits
+            // on a Surface-colored card underneath.
+            e.Graphics.Clear(BackgroundFill);
+        }
+
         protected override void OnPaint(PaintEventArgs e)
         {
-            base.OnPaint(e);
             if (!_timer.Enabled) return;
 
             var g = e.Graphics;

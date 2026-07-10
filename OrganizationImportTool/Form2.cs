@@ -6,6 +6,7 @@ using System;
 using System.Data;
 using System.Data.SQLite;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.IO;
 using System.Windows.Forms;
 
@@ -57,19 +58,22 @@ namespace OrganizationImportTool
 
             var formTitle = new Label { Text = "Client Details", Dock = DockStyle.Top, Height = LogicalToDeviceUnits(32), Font = AppleTheme.Headline, ForeColor = AppleTheme.TextPrimary };
 
-            var buttons = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 54, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, AutoScroll = false, BackColor = Color.Transparent, Padding = new Padding(0, 12, 0, 0) };
-            var newBtn = GunaUi.Button("+ New", primary: false); newBtn.Size = new Size(92, 38); newBtn.Margin = new Padding(0, 0, 7, 0); newBtn.Click += NewBtn_Click;
-            var saveBtn = GunaUi.Button("Save", primary: true); saveBtn.Size = new Size(92, 38); saveBtn.Margin = new Padding(0, 0, 7, 0); saveBtn.Click += SaveBtn_Click;
-            var updateBtn = GunaUi.Button("Update", primary: false); updateBtn.Size = new Size(92, 38); updateBtn.Margin = new Padding(0, 0, 7, 0); updateBtn.Click += UpdateBtn_Click;
-            var refreshBtn = GunaUi.Button("Refresh", primary: false); refreshBtn.Size = new Size(92, 38); refreshBtn.Margin = new Padding(0, 0, 7, 0); refreshBtn.Click += RefreshBtn_Click;
-            var closeBtn = GunaUi.Button("Close", primary: false); closeBtn.Size = new Size(92, 38); closeBtn.DialogResult = DialogResult.Cancel;
+            // Guna2Button text centres correctly only at its natural height (34px).
+            // 54px flow, Padding.Top=10 → 10+34+10 = centred.
+            var buttons = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 54, FlowDirection = FlowDirection.LeftToRight, WrapContents = false, AutoScroll = false, BackColor = Color.Transparent, Padding = new Padding(0, 10, 0, 0) };
+            var newBtn = GunaUi.Button("+ New", primary: false); newBtn.Size = new Size(92, 34); newBtn.Margin = new Padding(0, 0, 7, 0); newBtn.Click += NewBtn_Click;
+            var saveBtn = GunaUi.Button("Save", primary: true); saveBtn.Size = new Size(92, 34); saveBtn.Margin = new Padding(0, 0, 7, 0); saveBtn.Click += SaveBtn_Click;
+            var updateBtn = GunaUi.Button("Update", primary: false); updateBtn.Size = new Size(92, 34); updateBtn.Margin = new Padding(0, 0, 7, 0); updateBtn.Click += UpdateBtn_Click;
+            var refreshBtn = GunaUi.Button("Refresh", primary: false); refreshBtn.Size = new Size(92, 34); refreshBtn.Margin = new Padding(0, 0, 7, 0); refreshBtn.Click += RefreshBtn_Click;
+            var closeBtn = GunaUi.Button("Close", primary: false); closeBtn.Size = new Size(92, 34); closeBtn.DialogResult = DialogResult.Cancel;
             buttons.Controls.AddRange(new Control[] { newBtn, saveBtn, updateBtn, refreshBtn, closeBtn });
             CancelButton = closeBtn;
 
             // Test Connection row: proves URL + Sender ID + Password against the live eAdaptor
             // BEFORE saving, so a typo never becomes a mysterious failed import later.
-            var testRow = new FlowLayoutPanel { Dock = DockStyle.Top, Height = LogicalToDeviceUnits(48), FlowDirection = FlowDirection.LeftToRight, WrapContents = false, BackColor = Color.Transparent, Padding = new Padding(0, 8, 0, 0) };
-            var testBtn = GunaUi.Button("Test Connection", primary: false); testBtn.Size = new Size(150, 38); testBtn.Margin = new Padding(0, 0, 10, 0);
+            // 48px flow, Padding.Top=7 → 7+34+7 = centred.
+            var testRow = new FlowLayoutPanel { Dock = DockStyle.Top, Height = LogicalToDeviceUnits(48), FlowDirection = FlowDirection.LeftToRight, WrapContents = false, BackColor = Color.Transparent, Padding = new Padding(0, 7, 0, 0) };
+            var testBtn = GunaUi.Button("Test Connection", primary: false); testBtn.Size = new Size(150, 34); testBtn.Margin = new Padding(0, 0, 10, 0);
             testBtn.Click += async (s, e) => await TestConnectionAsync();
             _testSpinner = GunaUi.Spinner(24); _testSpinner.Margin = new Padding(0, 7, 8, 0);
             testRow.Controls.AddRange(new Control[] { testBtn, _testSpinner });
@@ -155,6 +159,7 @@ namespace OrganizationImportTool
                 SelectionMode = DataGridViewSelectionMode.FullRowSelect, BorderStyle = BorderStyle.None
             };
             grid.CellContentClick += Grid_CellContentClick;
+            grid.CellPainting += Grid_DeleteCellPainting;
             AppleTheme.StyleGrid(grid);
             rightCard.Controls.Add(grid);
             rightCard.Controls.Add(gridTitle);
@@ -177,6 +182,7 @@ namespace OrganizationImportTool
             Tips.Set(this, saveBtn, "Save this connection as a new client.");
             Tips.Set(this, updateBtn, "Save changes to the client selected in the grid.");
 
+            FormClosed += (s, e) => { conn?.Close(); conn?.Dispose(); };
             FormAnimator.FadeIn(this);
         }
 
@@ -407,7 +413,7 @@ namespace OrganizationImportTool
             try
             {
                 var dt = new DataTable();
-                var da = new SQLiteDataAdapter("SELECT E.Id, C.Name as Client, E.Environment, E.URL, E.SenderID, Password, E.LogPath,E.CompanyCode,E.EnterpriseID FROM EAdaptors E JOIN Clients C ON E.ClientId = C.Id", conn);
+                using var da = new SQLiteDataAdapter("SELECT E.Id, C.Name as Client, E.Environment, E.URL, E.SenderID, Password, E.LogPath,E.CompanyCode,E.EnterpriseID FROM EAdaptors E JOIN Clients C ON E.ClientId = C.Id", conn);
                 da.Fill(dt);
 
                 grid.Columns.Clear();
@@ -434,6 +440,11 @@ namespace OrganizationImportTool
                         Text = "Delete",
                         UseColumnTextForButtonValue = true
                     };
+                    // Red styling so destructive intent is immediately obvious
+                    deleteBtn.DefaultCellStyle.BackColor          = Color.FromArgb(120, 30, 30);
+                    deleteBtn.DefaultCellStyle.ForeColor          = Color.White;
+                    deleteBtn.DefaultCellStyle.SelectionBackColor = AppleTheme.Danger;
+                    deleteBtn.DefaultCellStyle.SelectionForeColor = Color.White;
                     grid.Columns.Add(deleteBtn);
                 }
             }
@@ -441,6 +452,44 @@ namespace OrganizationImportTool
             {
                 MessageBox.Show(this, "Error loading grid: " + ex.Message);
             }
+        }
+
+        private void Grid_DeleteCellPainting(object sender, DataGridViewCellPaintingEventArgs e)
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
+            if (grid.Columns[e.ColumnIndex].Name != "Delete") return;
+
+            // Paint the standard row background (grid selection stripe, etc.) without the default button
+            e.Paint(e.ClipBounds, DataGridViewPaintParts.Background | DataGridViewPaintParts.Border);
+
+            var cell = e.CellBounds;
+            var btn  = new Rectangle(cell.X + 5, cell.Y + 4, cell.Width - 10, cell.Height - 8);
+            if (btn.Width < 4 || btn.Height < 4) { e.Handled = true; return; }
+
+            var g = e.Graphics;
+            g.SmoothingMode   = SmoothingMode.AntiAlias;
+            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+
+            // Glossy red fill
+            using var path = AppleTheme.RoundedRect(btn, 5);
+            using (var fill = new SolidBrush(AppleTheme.Danger))
+                g.FillPath(fill, path);
+
+            // White glass sheen — same pattern as GlossButton
+            using (var gloss = new LinearGradientBrush(
+                       new Point(btn.X, btn.Y), new Point(btn.X, btn.Bottom),
+                       Color.FromArgb(80, 255, 255, 255), Color.FromArgb(0, 255, 255, 255)))
+            {
+                gloss.Blend = new Blend(3) { Factors = new[] { 0f, 0.85f, 1f }, Positions = new[] { 0f, 0.42f, 1f } };
+                g.FillPath(gloss, path);
+            }
+
+            // "Delete" text — EndEllipsis truncates gracefully when the column is narrow
+            TextRenderer.DrawText(g, "Delete", e.CellStyle.Font ?? grid.Font, btn, Color.White,
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter |
+                TextFormatFlags.SingleLine      | TextFormatFlags.EndEllipsis);
+
+            e.Handled = true;
         }
 
         private void Grid_CellContentClick(object sender, DataGridViewCellEventArgs e)
@@ -457,6 +506,7 @@ namespace OrganizationImportTool
                 DialogResult result = MessageBox.Show(this, "Are you sure you want to delete this record and its associated client?", "Confirm Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
                 if (result == DialogResult.Yes)
                 {
+                    using var tx = conn.BeginTransaction();
                     try
                     {
                         int clientId = -1;
@@ -464,6 +514,7 @@ namespace OrganizationImportTool
                         // Get the clientId linked to this adaptor
                         using (var getClientIdCmd = new SQLiteCommand("SELECT ClientId FROM EAdaptors WHERE Id = @id", conn))
                         {
+                            getClientIdCmd.Transaction = tx;
                             getClientIdCmd.Parameters.AddWithValue("@id", id);
                             var clientIdResult = getClientIdCmd.ExecuteScalar();
                             if (clientIdResult != null)
@@ -473,28 +524,42 @@ namespace OrganizationImportTool
                         // Delete the EAdaptor
                         using (var deleteAdaptorCmd = new SQLiteCommand("DELETE FROM EAdaptors WHERE Id = @id", conn))
                         {
+                            deleteAdaptorCmd.Transaction = tx;
                             deleteAdaptorCmd.Parameters.AddWithValue("@id", id);
                             deleteAdaptorCmd.ExecuteNonQuery();
                         }
 
-                        // Always delete the associated client (even if used by other adaptors)
+                        // Only delete the Clients row if no other EAdaptors still reference it.
+                        // Deleting unconditionally would silently remove sibling connections.
                         if (clientId != -1)
                         {
-                            using (var deleteClientCmd = new SQLiteCommand("DELETE FROM Clients WHERE Id = @clientId", conn))
+                            long remaining;
+                            using (var countCmd = new SQLiteCommand("SELECT COUNT(*) FROM EAdaptors WHERE ClientId = @clientId", conn))
                             {
+                                countCmd.Transaction = tx;
+                                countCmd.Parameters.AddWithValue("@clientId", clientId);
+                                remaining = (long)countCmd.ExecuteScalar();
+                            }
+                            if (remaining == 0)
+                            {
+                                using var deleteClientCmd = new SQLiteCommand("DELETE FROM Clients WHERE Id = @clientId", conn);
+                                deleteClientCmd.Transaction = tx;
                                 deleteClientCmd.Parameters.AddWithValue("@clientId", clientId);
                                 deleteClientCmd.ExecuteNonQuery();
                             }
                         }
 
+                        tx.Commit();
+
                         if (selectedAdaptorId == id)
                             selectedAdaptorId = -1;
 
                         LoadGrid();
-                        MessageBox.Show(this, "Adaptor and client deleted successfully.", "Deleted", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        MessageBox.Show(this, "Adaptor deleted successfully.", "Deleted", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                     catch (Exception ex)
                     {
+                        tx.Rollback();
                         MessageBox.Show(this, "Error deleting data: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     }
                 }

@@ -58,9 +58,16 @@ namespace OrganizationImportTool.Mapping
             if (!resp.Success || string.IsNullOrWhiteSpace(resp.Text)) return result;
 
             var valid = new HashSet<string>(contract.MappableFields.Select(f => f.Path), StringComparer.OrdinalIgnoreCase);
+
+            // Track already-assigned paths so AI cannot map two source columns to the same target.
+            var usedTargets = new HashSet<string>(
+                result.Columns.Where(c => !string.IsNullOrEmpty(c.TargetPath)).Select(c => c.TargetPath!),
+                StringComparer.OrdinalIgnoreCase);
+
             foreach (var (header, path) in ParseMappings(resp.Text))
             {
                 if (string.IsNullOrEmpty(path) || !valid.Contains(path)) continue;
+                if (usedTargets.Contains(path)) continue;  // another column already owns this target
                 var col = result.Columns.FirstOrDefault(c =>
                     string.Equals(c.SourceHeader, header, StringComparison.OrdinalIgnoreCase));
                 if (col == null) continue;
@@ -72,6 +79,7 @@ namespace OrganizationImportTool.Mapping
                 col.Score = 0.7;
                 col.Approved = false;                      // AI matches require explicit human approval
                 if (!col.Alternatives.Contains(path)) col.Alternatives.Insert(0, path);
+                usedTargets.Add(path);
 
                 // Explainability: the deterministic matcher was unsure, so AI resolved it.
                 string label = contract.MappableFields.FirstOrDefault(f =>

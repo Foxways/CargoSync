@@ -41,6 +41,10 @@ namespace OrganizationImportTool.Mapping
 
         private readonly List<ColumnMapping> _rowMap = new List<ColumnMapping>();
 
+        /// <summary>True when opened from the template designer (synthetic table) — enables adding
+        /// source column headings on the fly. Real file imports keep a fixed column set.</summary>
+        private readonly bool _designerMode;
+
         /// <summary>The confirmed mapping (valid only when DialogResult == OK).</summary>
         public MappingResult ConfirmedResult => _result;
 
@@ -50,6 +54,9 @@ namespace OrganizationImportTool.Mapping
             _contract = contract;
             _table = table;
             _result = result;
+            // The template designer opens with this synthetic source path; in that mode the user can
+            // add as many source column headings as they like and map them here, then save a template.
+            _designerMode = string.Equals(table.SourcePath, "(template designer)", StringComparison.Ordinal);
             _clientId = clientId;
             _store = store ?? new TemplateStore();
             _aiRouter = aiRouter;
@@ -115,30 +122,50 @@ namespace OrganizationImportTool.Mapping
                 Font = AppleTheme.Body
             };
 
-            var buttonRow = new Panel { Dock = DockStyle.Fill, BackColor = AppleTheme.Canvas, Padding = new Padding(14, 4, 14, 8) };
+            // Button strip: 52px (96px bottom − 44px status label), Padding (14,9,14,9) → 34px content.
+            // Uses DockStyle.Left/Right FlowLayouts with explicit pixel widths — same pattern as
+            // GunaUi.ButtonBar — avoids TLP column-boundary clipping and Guna2Button.PreferredSize issues.
+            static int W(Control b) => TextRenderer.MeasureText(b.Text, b.Font).Width + 60;
 
-            var saveTpl = GunaUi.Button("Save Template", primary: false); saveTpl.Size = new Size(130, 36); saveTpl.Click += SaveTemplate_Click;
-            var loadTpl = GunaUi.Button("Load Template", primary: false); loadTpl.Size = new Size(130, 36); loadTpl.Click += LoadTemplate_Click;
-            var copilotBtn = GunaUi.Button("✨ Copilot", primary: false); copilotBtn.Size = new Size(120, 36); copilotBtn.Click += CopilotBtn_Click;
+            var saveTpl    = GunaUi.Button("Save",       primary: false); saveTpl.Size    = new Size(W(saveTpl),    34); saveTpl.Click    += SaveTemplate_Click;
+            var loadTpl    = GunaUi.Button("Load",       primary: false); loadTpl.Size    = new Size(W(loadTpl),    34); loadTpl.Click    += LoadTemplate_Click;
+            var copilotBtn = GunaUi.Button("✨ Copilot", primary: false); copilotBtn.Size = new Size(W(copilotBtn), 34); copilotBtn.Click += CopilotBtn_Click;
             if (_aiRouter == null || !_aiRouter.IsConfigured)
             {
-                // Styled-disabled (still clickable so the tooltip can explain why) - AI is off.
                 copilotBtn.ForeColor = AppleTheme.TextSecondary;
                 copilotBtn.FillColor = Color.FromArgb(34, 34, 40);
             }
-            var leftFlow = new FlowLayoutPanel { Dock = DockStyle.Left, FlowDirection = FlowDirection.LeftToRight, AutoSize = true, WrapContents = false, BackColor = Color.Transparent };
-            leftFlow.Controls.Add(saveTpl);
-            leftFlow.Controls.Add(loadTpl);
-            leftFlow.Controls.Add(copilotBtn);
+            _confirmBtn = GunaUi.Button("Confirm  ✓", primary: true);  _confirmBtn.Size = new Size(W(_confirmBtn), 34); _confirmBtn.Click += ConfirmBtn_Click;
+            var cancelBtn = GunaUi.Button("Cancel",    primary: false); cancelBtn.Size   = new Size(W(cancelBtn),   34); cancelBtn.DialogResult = DialogResult.Cancel;
 
-            _confirmBtn = GunaUi.Button("Confirm Mapping  ✓", primary: true); _confirmBtn.Size = new Size(190, 36); _confirmBtn.Click += ConfirmBtn_Click;
-            var cancelBtn = GunaUi.Button("Cancel import", primary: false); cancelBtn.Size = new Size(130, 36); cancelBtn.DialogResult = DialogResult.Cancel;
-            var rightFlow = new FlowLayoutPanel { Dock = DockStyle.Right, FlowDirection = FlowDirection.RightToLeft, AutoSize = true, WrapContents = false, BackColor = Color.Transparent };
-            rightFlow.Controls.Add(_confirmBtn);
-            rightFlow.Controls.Add(cancelBtn);
+            // 8px gap between every sibling button
+            saveTpl.Margin    = new Padding(0, 0, 8, 0);
+            loadTpl.Margin    = new Padding(0, 0, 8, 0);
+            copilotBtn.Margin = new Padding(0, 0, 0, 0);
+            cancelBtn.Margin  = new Padding(0, 0, 8, 0);  // RTL: right margin = leading gap before _confirmBtn
+            _confirmBtn.Margin = new Padding(0, 0, 0, 0);
 
-            buttonRow.Controls.Add(leftFlow);
+            var leftBtns  = new Control[] { saveTpl, loadTpl, copilotBtn };
+            var rightBtns = new Control[] { _confirmBtn, cancelBtn };   // _confirmBtn = rightmost in RTL
+
+            var leftFlow = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Left, WrapContents = false, BackColor = Color.Transparent,
+                Width = leftBtns.Sum(b => b.Width + b.Margin.Horizontal)
+            };
+            leftFlow.Controls.AddRange(leftBtns);
+
+            var rightFlow = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Right, FlowDirection = FlowDirection.RightToLeft,
+                WrapContents = false, BackColor = Color.Transparent,
+                Width = rightBtns.Sum(b => b.Width + b.Margin.Horizontal)
+            };
+            rightFlow.Controls.AddRange(rightBtns);
+
+            var buttonRow = new Panel { Dock = DockStyle.Fill, BackColor = AppleTheme.Canvas, Padding = new Padding(14, 9, 14, 9) };
             buttonRow.Controls.Add(rightFlow);
+            buttonRow.Controls.Add(leftFlow);
             bottom.Controls.Add(buttonRow);
             bottom.Controls.Add(_statusLabel);
 
@@ -193,7 +220,60 @@ namespace OrganizationImportTool.Mapping
             _grid.CellValueChanged += Grid_CellValueChanged;
             _grid.CurrentCellChanged += (s, e) => UpdateExplain();
             _grid.DataError += (s, e) => { e.ThrowException = false; };
-            return _grid;
+
+            if (!_designerMode) return _grid;
+
+            // Template-designer mode: a toolbar above the grid lets the operator add as many source
+            // column headings as they wish, each then mappable to a CargoWise field in the grid below.
+            var host = new Panel { Dock = DockStyle.Fill, BackColor = AppleTheme.Canvas };
+            var bar = new Panel { Dock = DockStyle.Top, Height = 42, BackColor = AppleTheme.Canvas, Padding = new Padding(0, 4, 0, 6) };
+            var addBtn = GunaUi.Button("+  Add column heading", primary: false);
+            addBtn.Dock = DockStyle.Left;
+            addBtn.Width = TextRenderer.MeasureText(addBtn.Text, addBtn.Font).Width + 60;
+            addBtn.Click += (s, e) => AddColumnHeading();
+            var hint = new Label
+            {
+                Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(12, 0, 0, 0),
+                Font = AppleTheme.Caption, ForeColor = AppleTheme.TextSecondary,
+                Text = "Add each source column your files will have, then map it to a CargoWise field."
+            };
+            bar.Controls.Add(hint);
+            bar.Controls.Add(addBtn);
+            host.Controls.Add(_grid);     // Fill added first so the toolbar docks above it
+            host.Controls.Add(bar);
+            return host;
+        }
+
+        /// <summary>Template-designer action: add a new source column heading and a mappable grid row.</summary>
+        private void AddColumnHeading()
+        {
+            string name = Scheduling.Prompt.Show(this, "New source column heading:", string.Empty)?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(name)) return;
+
+            if (_table.Headers.Any(h => string.Equals(h, name, StringComparison.OrdinalIgnoreCase)) ||
+                _result.Columns.Any(c => string.Equals(c.SourceHeader, name, StringComparison.OrdinalIgnoreCase)))
+            {
+                MessageBox.Show(this, $"A column named “{name}” already exists.", "Add column heading",
+                    MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            _table.Headers.Add(name);
+            _result.Columns.Add(new ColumnMapping { SourceHeader = name, Include = true });
+            PopulateRows();
+            UpdateStatus();
+
+            // Jump to the new row's CargoWise-field dropdown so the operator can map it immediately.
+            int last = _grid.Rows.Count - 1;
+            if (last >= 0)
+            {
+                try
+                {
+                    _grid.CurrentCell = _grid.Rows[last].Cells["Target"];
+                    _grid.FirstDisplayedScrollingRowIndex = last;
+                }
+                catch { /* selection is best-effort */ }
+            }
         }
 
         private Control BuildExplainPanel()
@@ -333,6 +413,17 @@ namespace OrganizationImportTool.Mapping
             _contract.MappableFields.FirstOrDefault(f =>
                 string.Equals(f.Path, path, StringComparison.OrdinalIgnoreCase))?.DisplayName ?? path;
 
+        /// <summary>Per-line "✕" delete handler shared by the Constants, Value Maps and Rules grids.</summary>
+        private void RemoveRowOnDelete(Guna2DataGridView grid, DataGridViewCellEventArgs e, Action capture)
+        {
+            if (e.RowIndex < 0 || e.ColumnIndex < 0) return;
+            if (grid.Columns[e.ColumnIndex].Name != "Del") return;
+            if (grid.Rows[e.RowIndex].IsNewRow) return;
+            grid.Rows.RemoveAt(e.RowIndex);
+            capture();
+            UpdateStatus();
+        }
+
         private Control BuildConstantsPanel()
         {
             var panel = new Panel { Dock = DockStyle.Fill, BackColor = AppleTheme.Canvas, Padding = new Padding(8) };
@@ -363,12 +454,15 @@ namespace OrganizationImportTool.Mapping
                 DataSource = _constFieldOptions, DisplayMember = "Display", ValueMember = "Path",
                 FlatStyle = FlatStyle.Flat, DropDownWidth = 320
             });
-            _constGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Value", HeaderText = "Constant Value", FillWeight = 40 });
+            _constGrid.Columns.Add(new DataGridViewTextBoxColumn { Name = "Value", HeaderText = "Constant Value", FillWeight = 34 });
+            _constGrid.Columns.Add(new DataGridViewButtonColumn { Name = "Del", HeaderText = "", Text = "✕", UseColumnTextForButtonValue = true, FillWeight = 6, FlatStyle = FlatStyle.Flat, ToolTipText = "Delete this row" });
             AppleTheme.StyleGrid(_constGrid);
             _constGrid.AllowUserToAddRows = true;
             _constGrid.DataError += (s, e) => { e.ThrowException = false; };
             _constGrid.CurrentCellDirtyStateChanged += (s, e) => { if (_constGrid.IsCurrentCellDirty) _constGrid.CommitEdit(DataGridViewDataErrorContexts.Commit); };
             _constGrid.CellValueChanged += (s, e) => { CaptureConstants(); UpdateStatus(); };
+            _constGrid.CellContentClick += (s, e) => RemoveRowOnDelete(_constGrid, e, CaptureConstants);
+            _constGrid.CellFormatting += (s, e) => FlagBadValue(_constGrid, e, "Field", "Value");
 
             var removeBtn = GunaUi.Button("Remove Selected", primary: false); removeBtn.Dock = DockStyle.Bottom; removeBtn.Height = 34;
             removeBtn.Click += (s, e) =>
@@ -419,13 +513,16 @@ namespace OrganizationImportTool.Mapping
                 new DataGridViewTextBoxColumn { Name = "Value", HeaderText = "Value", FillWeight = 16 },
                 new DataGridViewTextBoxColumn { Name = "ThenLbl", HeaderText = "then set", ReadOnly = true, FillWeight = 7, DefaultCellStyle = new DataGridViewCellStyle { ForeColor = Color.Gray, Alignment = DataGridViewContentAlignment.MiddleCenter } },
                 new DataGridViewComboBoxColumn { Name = "Field", HeaderText = "CargoWise field", FillWeight = 21, DataSource = _constFieldOptions, DisplayMember = "Display", ValueMember = "Path", FlatStyle = FlatStyle.Flat, DropDownWidth = 320 },
-                new DataGridViewTextBoxColumn { Name = "To", HeaderText = "to value", FillWeight = 14 });
+                new DataGridViewTextBoxColumn { Name = "To", HeaderText = "to value", FillWeight = 14 },
+                new DataGridViewButtonColumn { Name = "Del", HeaderText = "", Text = "✕", UseColumnTextForButtonValue = true, FillWeight = 6, FlatStyle = FlatStyle.Flat, ToolTipText = "Delete this rule" });
             foreach (DataGridViewColumn c in _rulesGrid.Columns) c.SortMode = DataGridViewColumnSortMode.NotSortable;
             AppleTheme.StyleGrid(_rulesGrid);
             _rulesGrid.AllowUserToAddRows = true;
             _rulesGrid.DataError += (s, e) => { e.ThrowException = false; };
             _rulesGrid.CurrentCellDirtyStateChanged += (s, e) => { if (_rulesGrid.IsCurrentCellDirty) _rulesGrid.CommitEdit(DataGridViewDataErrorContexts.Commit); };
             _rulesGrid.CellValueChanged += (s, e) => { CaptureRules(); UpdateStatus(); };
+            _rulesGrid.CellContentClick += (s, e) => RemoveRowOnDelete(_rulesGrid, e, CaptureRules);
+            _rulesGrid.CellFormatting += (s, e) => FlagBadValue(_rulesGrid, e, "Field", "To");
             // seed the static "If"/"then set" hint cells on every new row
             _rulesGrid.RowsAdded += (s, e) =>
             {
@@ -446,10 +543,79 @@ namespace OrganizationImportTool.Mapping
                 CaptureRules(); UpdateStatus();
             };
 
+            var ioBar = new Panel { Dock = DockStyle.Bottom, Height = 34, BackColor = AppleTheme.Canvas };
+            var exportBtn = GunaUi.Button("Export rules + maps…", primary: false); exportBtn.Dock = DockStyle.Left; exportBtn.Width = 180;
+            exportBtn.Click += (s, e) => ExportExtras();
+            var importBtn = GunaUi.Button("Import…", primary: false); importBtn.Dock = DockStyle.Left; importBtn.Width = 110; importBtn.Margin = new Padding(8, 0, 0, 0);
+            importBtn.Click += (s, e) => ImportExtras();
+            ioBar.Controls.Add(importBtn);
+            ioBar.Controls.Add(exportBtn);
+
             panel.Controls.Add(_rulesGrid);
             panel.Controls.Add(removeBtn);
+            panel.Controls.Add(ioBar);
             panel.Controls.Add(help);
             return panel;
+        }
+
+        /// <summary>Save the current rules, constants and value-maps to a shareable JSON file.</summary>
+        private void ExportExtras()
+        {
+            CaptureRules(); CaptureConstants(); CaptureValueMaps();
+            var extras = MappingExtras.From(_result);
+            if (extras.IsEmpty)
+            {
+                MessageBox.Show(this, "There are no rules, constants or value maps to export yet.",
+                    "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            using var dlg = new SaveFileDialog
+            {
+                Title = "Export rules, constants & value maps",
+                Filter = "CargoSync rules & maps (*.cwmap.json)|*.cwmap.json|JSON (*.json)|*.json",
+                FileName = "rules-and-maps.cwmap.json"
+            };
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+            try
+            {
+                extras.SavedUtc = DateTime.UtcNow.ToString("o");
+                extras.Save(dlg.FileName);
+                MessageBox.Show(this, "Exported.", "Export", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Export failed: " + ex.Message, "Export", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        /// <summary>Load rules/constants/value-maps from a file, replacing or merging with the current set.</summary>
+        private void ImportExtras()
+        {
+            using var dlg = new OpenFileDialog
+            {
+                Title = "Import rules, constants & value maps",
+                Filter = "CargoSync rules & maps (*.cwmap.json)|*.cwmap.json|JSON (*.json)|*.json|All files (*.*)|*.*"
+            };
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+            MappingExtras extras;
+            try { extras = MappingExtras.Load(dlg.FileName); }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Could not read that file: " + ex.Message, "Import", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            var choice = MessageBox.Show(this,
+                "Replace the current rules/constants/value-maps with the imported ones?\n\n" +
+                "Yes = replace,  No = merge (keep existing),  Cancel = abort.",
+                "Import", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+            if (choice == DialogResult.Cancel) return;
+
+            extras.ApplyTo(_result, replace: choice == DialogResult.Yes);
+            PopulateRules(); PopulateConstants(); PopulateValueMaps();
+            UpdateStatus();
+            MessageBox.Show(this, "Imported.", "Import", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void PopulateRules()
@@ -458,6 +624,7 @@ namespace OrganizationImportTool.Mapping
             foreach (var r in _result.Rules)
             {
                 int i = _rulesGrid.Rows.Add(r.Enabled, "IF", r.WhenColumn, r.Op, r.WhenValue, "THEN", r.ThenField ?? string.Empty, r.ThenValue);
+                _rulesGrid.Rows[i].Tag = r; // keep the rule so its extra conditions/actions survive a grid round-trip
             }
         }
 
@@ -470,16 +637,43 @@ namespace OrganizationImportTool.Mapping
                 string when = row.Cells["When"].Value?.ToString() ?? string.Empty;
                 string field = row.Cells["Field"].Value?.ToString() ?? string.Empty;
                 if (string.IsNullOrWhiteSpace(when) && string.IsNullOrWhiteSpace(field)) continue;
-                var rule = new TransformRule
-                {
-                    Enabled = Convert.ToBoolean(row.Cells["Enabled"].Value ?? true),
-                    WhenColumn = when,
-                    Op = row.Cells["Op"].Value is RuleOp op ? op : RuleOp.Equals,
-                    WhenValue = row.Cells["Value"].Value?.ToString() ?? string.Empty,
-                    ThenField = field,
-                    ThenValue = row.Cells["To"].Value?.ToString() ?? string.Empty
-                };
+
+                // Reuse the existing rule (via the row tag) so multi-condition rules loaded from a
+                // template/import keep their extra Conditions/Actions/Logic; the grid edits the primary.
+                var rule = row.Tag as TransformRule ?? new TransformRule();
+                rule.Enabled = Convert.ToBoolean(row.Cells["Enabled"].Value ?? true);
+                rule.WhenColumn = when;
+                rule.Op = row.Cells["Op"].Value is RuleOp op ? op : RuleOp.Equals;
+                rule.WhenValue = row.Cells["Value"].Value?.ToString() ?? string.Empty;
+                rule.ThenField = field;
+                rule.ThenValue = row.Cells["To"].Value?.ToString() ?? string.Empty;
+                row.Tag = rule;
                 _result.Rules.Add(rule);
+            }
+        }
+
+        /// <summary>
+        /// Colour a grid's value cell red with a tooltip when the value is invalid for the chosen
+        /// CargoWise field (bad enum code, too long, wrong type) - inline feedback before the send gate.
+        /// </summary>
+        private void FlagBadValue(Guna2DataGridView grid, DataGridViewCellFormattingEventArgs e, string pathCol, string valueCol)
+        {
+            if (_contract == null || e.RowIndex < 0 || e.ColumnIndex < 0) return;
+            if (grid.Columns[e.ColumnIndex].Name != valueCol) return;
+            var row = grid.Rows[e.RowIndex];
+            if (row.IsNewRow) return;
+
+            string path = row.Cells[pathCol].Value?.ToString() ?? string.Empty;
+            string val = row.Cells[valueCol].Value?.ToString() ?? string.Empty;
+            string? problem = Validation.FieldValueValidator.Check(_contract, path, val);
+            if (problem != null)
+            {
+                e.CellStyle!.ForeColor = Color.FromArgb(255, 138, 128); // soft red on the dark theme
+                row.Cells[valueCol].ToolTipText = problem;
+            }
+            else
+            {
+                row.Cells[valueCol].ToolTipText = string.Empty;
             }
         }
 
@@ -497,8 +691,8 @@ namespace OrganizationImportTool.Mapping
             var helpDesc = new Label
             {
                 Dock = DockStyle.Top, Height = 46, AutoSize = false, Font = AppleTheme.Body, ForeColor = AppleTheme.TextSecondary,
-                Text = "Translate a client's own codes into CargoWise values for a field. Example: for Country map \"AUS\" → \"AU\", \"NZL\" → \"NZ\".\n" +
-                       "Each row: when a column's value equals the source, it's swapped for the output before sending. Add several rows per field."
+                Text = "Translate a client's own codes into CargoWise values for a field. Example: for Country map \"AUS\" → \"AU\".\n" +
+                       "Source can be exact, a wildcard (AUS*, N?), regex: (regex:^A.*$), or * for a catch-all default. Bulk-paste accepts Field⇥Source⇥Output lines."
             };
             var helpTitle = new Label
             {
@@ -518,13 +712,15 @@ namespace OrganizationImportTool.Mapping
                 new DataGridViewComboBoxColumn { Name = "Field", HeaderText = "CargoWise field", FillWeight = 42, DataSource = _constFieldOptions, DisplayMember = "Display", ValueMember = "Path", FlatStyle = FlatStyle.Flat, DropDownWidth = 320 },
                 new DataGridViewTextBoxColumn { Name = "Source", HeaderText = "When the value is…", FillWeight = 29 },
                 new DataGridViewTextBoxColumn { Name = "ArrowLbl", HeaderText = "", ReadOnly = true, FillWeight = 5, DefaultCellStyle = new DataGridViewCellStyle { ForeColor = Color.Gray, Alignment = DataGridViewContentAlignment.MiddleCenter } },
-                new DataGridViewTextBoxColumn { Name = "Output", HeaderText = "…send this instead", FillWeight = 29 });
+                new DataGridViewTextBoxColumn { Name = "Output", HeaderText = "…send this instead", FillWeight = 27 },
+                new DataGridViewButtonColumn { Name = "Del", HeaderText = "", Text = "✕", UseColumnTextForButtonValue = true, FillWeight = 6, FlatStyle = FlatStyle.Flat, ToolTipText = "Delete this row" });
             foreach (DataGridViewColumn c in _valueMapGrid.Columns) c.SortMode = DataGridViewColumnSortMode.NotSortable;
             AppleTheme.StyleGrid(_valueMapGrid);
             _valueMapGrid.AllowUserToAddRows = true;
             _valueMapGrid.DataError += (s, e) => { e.ThrowException = false; };
             _valueMapGrid.CurrentCellDirtyStateChanged += (s, e) => { if (_valueMapGrid.IsCurrentCellDirty) _valueMapGrid.CommitEdit(DataGridViewDataErrorContexts.Commit); };
             _valueMapGrid.CellValueChanged += (s, e) => { CaptureValueMaps(); UpdateStatus(); };
+            _valueMapGrid.CellContentClick += (s, e) => RemoveRowOnDelete(_valueMapGrid, e, CaptureValueMaps);
             _valueMapGrid.RowsAdded += (s, e) =>
             {
                 for (int i = e.RowIndex; i < e.RowIndex + e.RowCount && i < _valueMapGrid.Rows.Count; i++)
@@ -539,10 +735,43 @@ namespace OrganizationImportTool.Mapping
                 CaptureValueMaps(); UpdateStatus();
             };
 
+            var pasteBtn = GunaUi.Button("Paste rows (Field ⇥ Source ⇥ Output)", primary: false); pasteBtn.Dock = DockStyle.Bottom; pasteBtn.Height = 34;
+            pasteBtn.Click += (s, e) => PasteValueMapRows();
+
             panel.Controls.Add(_valueMapGrid);
             panel.Controls.Add(removeBtn);
+            panel.Controls.Add(pasteBtn);
             panel.Controls.Add(help);
             return panel;
+        }
+
+        /// <summary>Bulk-add value-map rows from clipboard text: one "Field[tab]Source[tab]Output" per line.</summary>
+        private void PasteValueMapRows()
+        {
+            string text;
+            try { text = Clipboard.GetText(); } catch { text = string.Empty; }
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                MessageBox.Show(this, "Clipboard is empty. Copy rows as 'Field<TAB>Source<TAB>Output' (one per line).",
+                    "Paste value maps", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            int added = 0;
+            foreach (var raw in text.Replace("\r\n", "\n").Split('\n'))
+            {
+                if (string.IsNullOrWhiteSpace(raw)) continue;
+                var parts = raw.Split('\t');
+                if (parts.Length < 3) parts = raw.Split(','); // allow CSV too
+                if (parts.Length < 3) continue;
+                string field = parts[0].Trim(), src = parts[1].Trim(), outp = parts[2].Trim();
+                if (field.Length == 0 || src.Length == 0) continue;
+                _valueMapGrid.Rows.Add(field, src, "→", outp);
+                added++;
+            }
+            CaptureValueMaps(); UpdateStatus();
+            MessageBox.Show(this, added > 0 ? $"Added {added} value-map row(s)." : "No valid rows found (expected Field, Source, Output per line).",
+                "Paste value maps", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
         private void PopulateValueMaps()

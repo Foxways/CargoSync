@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
@@ -101,8 +101,8 @@ namespace OrganizationImportTool.Ai
 
             // ButtonBar keeps Save/Cancel clear of the Windows taskbar on this maximized window
             // (the old flush 64px footer left them cut off at the bottom of the screen).
-            var save = GunaUi.Button("Save", primary: true); save.Size = new Size(120, 40); save.Click += Save_Click;
-            var cancel = GunaUi.Button("Cancel", primary: false); cancel.Size = new Size(110, 40); cancel.DialogResult = DialogResult.Cancel;
+            var save = GunaUi.Button("Save", primary: true); save.Size = new Size(TextRenderer.MeasureText(save.Text, save.Font).Width + 60, 34); save.Click += Save_Click;
+            var cancel = GunaUi.Button("Cancel", primary: false); cancel.Size = new Size(TextRenderer.MeasureText(cancel.Text, cancel.Font).Width + 60, 34); cancel.DialogResult = DialogResult.Cancel;
             _lblStatus = new Label
             {
                 AutoSize = true,
@@ -157,6 +157,7 @@ namespace OrganizationImportTool.Ai
             MenuItem("Ollama (local, no API key)", AiProviderProfile.OllamaTemplate);
             addMenu.Items.Add(new ToolStripSeparator());
             MenuItem("Custom (any OpenAI-compatible URL)…", AiProviderProfile.CustomTemplate);
+            AppleTheme.DarkenMenu(addMenu);   // dark background + white text instead of the default white menu
             addBtn.Click += (s, e) => addMenu.Show(addBtn, new Point(0, addBtn.Height));
 
             var up = MakeMiniButton("↑ Up");
@@ -216,8 +217,9 @@ namespace OrganizationImportTool.Ai
 
             var testRow = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, AutoSize = true, BackColor = Color.Transparent };
             var testBtn = GunaUi.Button("Test Connection", primary: false); testBtn.Size = new Size(150, 34);
+            testBtn.Margin = new Padding(0, 8, 10, 8);  // 8+34+8=50 → centred in the 50px row
             testBtn.Click += TestBtn_Click;
-            _lblTest = new Label { AutoSize = true, Padding = new Padding(10, 8, 0, 0), Font = AppleTheme.Body, ForeColor = AppleTheme.TextSecondary };
+            _lblTest = new Label { AutoSize = true, Padding = new Padding(0, 8, 0, 0), Font = AppleTheme.Body, ForeColor = AppleTheme.TextSecondary };
             testRow.Controls.Add(testBtn);
             testRow.Controls.Add(_lblTest);
             grid.Controls.Add(testRow, 0, r);
@@ -472,7 +474,7 @@ namespace OrganizationImportTool.Ai
             var p = _providers[e.Index];
             bool sel = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
             // dark theme: selected row = dark accent tint, never the light system highlight
-            using var bg = new SolidBrush(sel ? Color.FromArgb(38, 70, 110) : AppleTheme.Surface);
+            using var bg = new SolidBrush(sel ? Color.FromArgb(0, 70, 66) : AppleTheme.Surface);  // dark teal selection
             e.Graphics.FillRectangle(bg, e.Bounds);
             if (sel)
                 using (var bar = new SolidBrush(AppleTheme.Accent))

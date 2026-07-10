@@ -15,7 +15,7 @@ namespace OrganizationImportTool.Security
         private const string Prefix = "enc:v1:";
         private const string PlainPrefix = "plain:v1:"; // DPAPI failed - stored un-encrypted but tagged
 
-        private static bool _plainWarned; // log the legacy/plain warning once per process, not per read
+        private static volatile bool _plainWarned; // volatile: read/written from any thread without a lock
 
         /// <summary>
         /// Raised when a secret could NOT be encrypted and was stored un-encrypted (tagged).
@@ -77,6 +77,34 @@ namespace OrganizationImportTool.Security
 
         public static bool IsProtected(string? stored) =>
             !string.IsNullOrEmpty(stored) && stored!.StartsWith(Prefix, StringComparison.Ordinal);
+
+        /// <summary>
+        /// If <paramref name="stored"/> is a legacy plaintext value (no prefix), re-encrypts it and
+        /// calls <paramref name="persist"/> with the new protected form so the caller can write it back
+        /// to disk. Returns the plain value in all cases. Safe to call on already-encrypted values
+        /// (no-op). Callers should invoke this after any Unprotect() of a user-entered secret.
+        /// </summary>
+        public static string ReprotectIfNeeded(string? stored, Action<string> persist)
+        {
+            if (string.IsNullOrEmpty(stored)) return string.Empty;
+            if (stored!.StartsWith(Prefix, StringComparison.Ordinal) ||
+                stored.StartsWith(PlainPrefix, StringComparison.Ordinal))
+                return Unprotect(stored); // already tagged — no migration needed
+
+            // Legacy plaintext: decrypt (it IS the plain value), re-encrypt, persist.
+            string plain = stored;
+            try
+            {
+                string reprotected = Protect(plain);
+                persist(reprotected);
+                AppLog.Warn("Migrated legacy plaintext secret to DPAPI-encrypted form.");
+            }
+            catch (Exception ex)
+            {
+                AppLog.Error("Failed to re-encrypt legacy plaintext secret — it will remain unprotected until next manual save", ex);
+            }
+            return plain;
+        }
 
         private static void WarnPlainOnce(string message)
         {

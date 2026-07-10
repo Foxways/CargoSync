@@ -31,10 +31,13 @@ namespace OrganizationImportTool.Ui
             BorderThickness = 1;
             Font = AppleTheme.Body;
             Cursor = Cursors.Hand;
-            Height = 32;
-            Margin = new Padding(0, 11, 12, 11);
+            // Anchor Top+Bottom stretches the chip to (row_height − Margin.Top − Margin.Bottom) at any DPI,
+            // matching the adjacent DockStyle.Fill buttons whose heights also scale with the DPI-adjusted row.
+            Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left;
+            Margin = new Padding(0, 11, 12, 11);  // symmetric vertical margin — chip fills (row − 22px) matching sibling buttons
 
             var menu = new ContextMenuStrip();
+            AppleTheme.DarkenMenu(menu);
             var toggle = menu.Items.Add("Turn AI on/off");
             toggle.Click += (s, e) => ToggleRequested?.Invoke();
             var settings = menu.Items.Add("AI Settings…");

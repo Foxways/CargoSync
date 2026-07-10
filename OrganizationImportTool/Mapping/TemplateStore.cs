@@ -101,7 +101,12 @@ namespace OrganizationImportTool.Mapping
                 t.Entries.Add(entry);
             }
             foreach (var kv in result.Constants)
-                t.Entries.Add(new TemplateEntry { TargetPath = kv.Key, ConstantValue = kv.Value });
+            {
+                var constEntry = new TemplateEntry { TargetPath = kv.Key, ConstantValue = kv.Value };
+                if (result.ValueMaps.TryGetValue(kv.Key, out var constVm) && constVm.Count > 0)
+                    constEntry.ValueMap = new Dictionary<string, string>(constVm);
+                t.Entries.Add(constEntry);
+            }
             t.Rules = result.Rules.Select(CloneRule).ToList();
             return t;
         }
@@ -109,7 +114,10 @@ namespace OrganizationImportTool.Mapping
         private static TransformRule CloneRule(TransformRule r) => new TransformRule
         {
             Enabled = r.Enabled, WhenColumn = r.WhenColumn, Op = r.Op, WhenValue = r.WhenValue,
-            ThenField = r.ThenField, ThenValue = r.ThenValue
+            ThenField = r.ThenField, ThenValue = r.ThenValue,
+            Logic = r.Logic,
+            Conditions = r.Conditions.Select(c => new RuleCondition { Column = c.Column, Op = c.Op, Value = c.Value }).ToList(),
+            Actions    = r.Actions.Select(a => new RuleAction { Field = a.Field, Value = a.Value }).ToList()
         };
 
         /// <summary>
@@ -247,14 +255,23 @@ namespace OrganizationImportTool.Mapping
                 }
                 entry.TargetPath = c.TargetPath!;
                 entry.ConstantValue = null;
+                // Mirror the operator's current value-map exactly: if they cleared it, forget the
+                // remembered one too (previously a deleted map silently persisted into the next upload).
                 if (confirmed.ValueMaps.TryGetValue(c.TargetPath!, out var vm) && vm.Count > 0)
                     entry.ValueMap = new Dictionary<string, string>(vm);
+                else
+                    entry.ValueMap = null;
             }
 
             // refresh remembered constants (replace the whole constant set with the latest confirmation's)
             t.Entries.RemoveAll(e => e.IsConstant);
             foreach (var kv in confirmed.Constants)
-                t.Entries.Add(new TemplateEntry { TargetPath = kv.Key, ConstantValue = kv.Value });
+            {
+                var constEntry = new TemplateEntry { TargetPath = kv.Key, ConstantValue = kv.Value };
+                if (confirmed.ValueMaps.TryGetValue(kv.Key, out var constVm) && constVm.Count > 0)
+                    constEntry.ValueMap = new Dictionary<string, string>(constVm);
+                t.Entries.Add(constEntry);
+            }
 
             // remember the operator's confirmed rules for next time
             t.Rules = confirmed.Rules.Select(CloneRule).ToList();

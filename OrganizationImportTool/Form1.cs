@@ -31,8 +31,8 @@ namespace OrganizationImportTool
     public partial class Form1 : Form
     {
         private SQLiteConnection conn;
-        private Guna2ComboBox clientBox;
-        private Guna2Button browseBtn, uploadBtn, dryRunBtn, addClientBtn, cancelBtn, aiSettingsBtn, pauseBtn, cwSyncBtn; // Add a button to open Form2
+        private SearchComboBox clientBox;
+        private Guna2Button browseBtn, uploadBtn, dryRunBtn, addClientBtn, cancelBtn, aiSettingsBtn, pauseBtn, cwSyncBtn, scheduleBtn; // Add a button to open Form2
         private AiStatusChip aiChip;
         private Panel _getStartedOverlay;
         private readonly HashSet<string> _lessonToastShown = new(StringComparer.OrdinalIgnoreCase);
@@ -47,7 +47,7 @@ namespace OrganizationImportTool
         private TokenUsageStore _aiUsage = new TokenUsageStore();
         private AiRouter? _aiRouter;
       
-        public TextBox logBox;
+        public RichTextBox logBox;
         public Guna2ProgressBar progressBar;
         private Spinner _busySpinner;
         private Label footerLabel;
@@ -80,6 +80,7 @@ namespace OrganizationImportTool
             LoadClients();
             InitializeAi();
             this.Shown += (s, e) => MaybeRunWelcomeWizard();
+            this.FormClosed += (s, e) => { conn?.Close(); conn?.Dispose(); conn = null; };
         }
 
         /// <summary>First launch with no clients: run the guided setup instead of showing dead buttons.</summary>
@@ -203,18 +204,27 @@ namespace OrganizationImportTool
             };
             // Absolute row heights are in 96-DPI logical units - scale them so text rows
             // (especially the footer) don't clip at 125%/150% display scaling.
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(54)));   // header
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(60)));   // header — 60px leaves ≥13px clearance above card shadow (depth=7)
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(240)));  // input card
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));                          // log card
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(48)));   // status + progress
             root.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(26)));   // footer
 
             // ---- Header bar ----
-            var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 4, RowCount = 1, BackColor = Color.Transparent, Margin = new Padding(0) };
+            // Measure both button labels at the GunaUi.Button font and use the wider one for both
+            // columns so "AI Settings" and "Schedule" are always the same width.
+            var _hdrFont = AppleTheme.Font(10f, FontStyle.Bold);
+            int _btnW = Math.Max(
+                TextRenderer.MeasureText("⚙   AI Settings", _hdrFont).Width + 60,
+                TextRenderer.MeasureText("↻  Schedule",     _hdrFont).Width + 60);
+
+            var header = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 6, RowCount = 1, BackColor = Color.Transparent, Margin = new Padding(0) };
             header.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             header.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));      // AI status chip
             header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 48));  // Help "?"
-            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 160));
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 48));  // Maintenance "🧹"
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, _btnW)); // AI Settings
+            header.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, _btnW)); // Schedule — same width
             var titleLbl = new Label { Text = "CargoSync", Dock = DockStyle.Fill, Font = AppleTheme.Title, ForeColor = AppleTheme.TextPrimary, TextAlign = ContentAlignment.MiddleLeft };
             aiChip = new AiStatusChip();
             aiChip.ToggleRequested += ToggleAi;
@@ -224,18 +234,37 @@ namespace OrganizationImportTool
             helpBtn.Margin = new Padding(0, 9, 8, 9);
             helpBtn.Font = AppleTheme.Font(12f, FontStyle.Bold);
             helpBtn.Click += (s, e) => Help.HelpForm.Open(this);
+
+            var maintenanceBtn = GunaButton("", primary: false);   // Segoe Fluent/MDL2 "Delete" (clean trash glyph)
+            maintenanceBtn.Dock = DockStyle.Fill;
+            maintenanceBtn.Margin = new Padding(0, 9, 8, 9);
+            maintenanceBtn.Font = AppleTheme.IconFont(11f);
+            maintenanceBtn.Click += (s, e) =>
+            {
+                try { using var f = new Maintenance.DataMaintenanceForm(); f.ShowDialog(this); }
+                catch (Exception ex) { MessageBox.Show($"Could not open Data & Maintenance: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+            };
+
             aiSettingsBtn = GunaButton("⚙   AI Settings", primary: true);
             aiSettingsBtn.Dock = DockStyle.Fill;
-            aiSettingsBtn.Margin = new Padding(0, 8, 0, 8);
+            aiSettingsBtn.Margin = new Padding(0, 11, 0, 11);
             aiSettingsBtn.Click += AiSettingsBtn_Click;
+
+            scheduleBtn = GunaButton("↻  Schedule", primary: true);
+            scheduleBtn.Dock = DockStyle.Fill;
+            scheduleBtn.Margin = new Padding(8, 11, 0, 11);
+            scheduleBtn.Click += ScheduleBtn_Click;
+
             header.Controls.Add(titleLbl, 0, 0);
             header.Controls.Add(aiChip, 1, 0);
             header.Controls.Add(helpBtn, 2, 0);
-            header.Controls.Add(aiSettingsBtn, 3, 0);
+            header.Controls.Add(maintenanceBtn, 3, 0);
+            header.Controls.Add(aiSettingsBtn, 4, 0);
+            header.Controls.Add(scheduleBtn, 5, 0);
 
             // ---- Input card ----
             var inputCard = GunaCard();
-            inputCard.Margin = new Padding(0, 6, 0, 6);
+            inputCard.Margin = new Padding(0, 12, 0, 6);  // 12px top — keeps card shadow (depth=7) fully below the header row
             inputCard.Padding = new Padding(18, 14, 18, 14);
             var formGrid = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 3, RowCount = 4, BackColor = Color.Transparent };
             formGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 86));
@@ -247,11 +276,11 @@ namespace OrganizationImportTool
             formGrid.RowStyles.Add(new RowStyle(SizeType.Absolute, LogicalToDeviceUnits(56)));
 
             var clientLbl = MakeFieldLabel("Client");
-            clientBox = new Guna2ComboBox
+            // Type-to-search picker (Guna2ComboBox forces DropDownList, so it can never accept
+            // typing - this is a Guna text box + floating filtered list instead).
+            clientBox = new SearchComboBox
             {
-                Dock = DockStyle.Fill, Margin = new Padding(4, 7, 6, 7),
-                FillColor = AppleTheme.ControlFill, BorderColor = AppleTheme.Hairline, BorderRadius = 8,
-                ForeColor = AppleTheme.TextPrimary, Font = AppleTheme.Body, ItemHeight = 28
+                Dock = DockStyle.Fill, Margin = new Padding(4, 7, 6, 7)
             };
             addClientBtn = GunaButton("Add Client", primary: false);
             addClientBtn.Dock = DockStyle.Fill; addClientBtn.Margin = new Padding(4, 6, 0, 6);
@@ -270,7 +299,8 @@ namespace OrganizationImportTool
             browseBtn.Dock = DockStyle.Fill; browseBtn.Margin = new Padding(4, 6, 0, 6); browseBtn.Enabled = false;
             browseBtn.Click += BrowseBtn_Click;
 
-            var actions = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.LeftToRight, BackColor = Color.Transparent, Margin = new Padding(0, 2, 0, 0) };
+            // Left-aligned action buttons
+            var leftActions = new FlowLayoutPanel { Dock = DockStyle.Left, AutoSize = true, WrapContents = false, BackColor = Color.Transparent };
             uploadBtn = GunaButton("Upload", primary: true);
             uploadBtn.Size = new Size(140, 40); uploadBtn.Enabled = false; uploadBtn.Margin = new Padding(4, 2, 10, 2);
             dryRunBtn = GunaButton("Dry Run", primary: false);
@@ -281,16 +311,16 @@ namespace OrganizationImportTool
             cancelBtn.Size = new Size(110, 40); cancelBtn.Enabled = false; cancelBtn.Margin = new Padding(0, 2, 4, 2);
             cwSyncBtn = GunaButton("Import History", primary: false);
             cwSyncBtn.Size = new Size(150, 40); cwSyncBtn.Enabled = false; cwSyncBtn.Margin = new Padding(10, 2, 4, 2);
+
             uploadBtn.Click += UploadBtn_ClickAsync;
             dryRunBtn.Click += UploadBtn_ClickAsync;   // same pipeline, simulate only (decided by sender)
             pauseBtn.Click += PauseBtn_Click;
             cancelBtn.Click += CancelBtn_Click;
             cwSyncBtn.Click += CwSyncBtn_Click;
-            actions.Controls.Add(uploadBtn);
-            actions.Controls.Add(dryRunBtn);
-            actions.Controls.Add(pauseBtn);
-            actions.Controls.Add(cancelBtn);
-            actions.Controls.Add(cwSyncBtn);
+            leftActions.Controls.AddRange(new Control[] { uploadBtn, dryRunBtn, pauseBtn, cancelBtn, cwSyncBtn });
+
+            var actions = new Panel { Dock = DockStyle.Fill, BackColor = Color.Transparent, Margin = new Padding(0, 2, 0, 0) };
+            actions.Controls.Add(leftActions);
 
             formGrid.Controls.Add(clientLbl, 0, 0);
             formGrid.Controls.Add(clientBox, 1, 0);
@@ -327,16 +357,16 @@ namespace OrganizationImportTool
             var logCard = GunaCard();
             logCard.Margin = new Padding(0, 6, 0, 6);
             logCard.Padding = new Padding(12);
-            logBox = new TextBox
+            logBox = new RichTextBox
             {
                 Dock = DockStyle.Fill,
-                Multiline = true,
                 ReadOnly = true,
-                ScrollBars = ScrollBars.Vertical,
+                ScrollBars = RichTextBoxScrollBars.Vertical,
                 BorderStyle = BorderStyle.None,
                 BackColor = AppleTheme.Surface,
                 ForeColor = AppleTheme.TextPrimary,
                 Font = new Font("Consolas", 9),
+                WordWrap = false,
                 Name = "logBox"
             };
             logCard.Controls.Add(logBox);
@@ -356,7 +386,7 @@ namespace OrganizationImportTool
             statusPanel.Controls.Add(progressBar, 0, 1);
 
             // ---- Footer ----
-            footerLabel = new Label { Text = $"CargoSync   ·   by Kishan Manohar © 2026   ·   v1.0.0   ·   About          Signed in as: {_currentUser.Username}", Dock = DockStyle.Fill, Font = AppleTheme.Caption, ForeColor = AppleTheme.TextSecondary, TextAlign = ContentAlignment.MiddleLeft, Cursor = Cursors.Hand };
+            footerLabel = new Label { Text = $"CargoSync   ·   by Kishan Manohar © 2025   ·   v1.0.0   ·   About          Signed in as: {_currentUser.Username}", Dock = DockStyle.Fill, Font = AppleTheme.Caption, ForeColor = AppleTheme.TextSecondary, TextAlign = ContentAlignment.MiddleLeft, Cursor = Cursors.Hand };
             footerLabel.Click += (s, e) => { using var about = new Help.AboutForm(); about.ShowDialog(this); };
 
             root.Controls.Add(header, 0, 0);
@@ -367,7 +397,7 @@ namespace OrganizationImportTool
             this.Controls.Add(root);
 
             // Plain-language hints on every interactive control.
-            Tips.Set(this, clientBox, "Choose which CargoWise company to import into. Set one up with Add Client.");
+            Tips.Set(this, clientBox, "Choose which CargoWise company to import into - you can type to search. Set one up with Add Client.");
             Tips.Set(this, addClientBtn, "Add or edit a CargoWise connection (eAdaptor URL, sign-in details, log folder).");
             Tips.Set(this, filePathBox, "The Excel or CSV file of organizations to import. Any layout works.");
             Tips.Set(this, browseBtn, "Pick the Excel/CSV file of organizations. Any column names are fine.");
@@ -390,50 +420,9 @@ namespace OrganizationImportTool
 
             // ---- state wiring ----
             clientBox.SelectedIndexChanged += ClientBox_SelectedIndexChanged;
-            clientBox.SelectedIndexChanged += (s, e) =>
-            {
-                uploadBtn.Enabled = clientBox.SelectedIndex >= 0;
-                dryRunBtn.Enabled = clientBox.SelectedIndex >= 0;
-                cwSyncBtn.Enabled = clientBox.SelectedIndex >= 0;
-                browseBtn.Enabled = clientBox.SelectedItem != null;
-                filePathBox.Text = string.Empty;
-                logBox.Text = string.Empty;
-                labelCounter.Text = "Ready";
-                cancelBtn.Enabled = false;
-            };
         }
 
-        /// <summary>A modern rounded Guna button styled for our dark theme.</summary>
-        private static Guna2Button GunaButton(string text, bool primary)
-        {
-            var b = new Guna2Button
-            {
-                Text = text,
-                BorderRadius = 10,
-                Font = AppleTheme.Font(10f, FontStyle.Bold),
-                Cursor = Cursors.Hand,
-                ForeColor = Color.White,
-                Animated = true
-            };
-            if (primary)
-            {
-                b.FillColor = AppleTheme.Accent;
-                b.HoverState.FillColor = AppleTheme.AccentHover;
-            }
-            else
-            {
-                b.FillColor = AppleTheme.SecondaryFill;
-                b.ForeColor = AppleTheme.TextPrimary;
-                b.BorderColor = AppleTheme.Hairline;
-                b.BorderThickness = 1;
-                b.HoverState.FillColor = AppleTheme.SecondaryHover;
-                b.HoverState.BorderColor = AppleTheme.Hairline;
-            }
-            b.DisabledState.FillColor = Color.FromArgb(40, 40, 46);
-            b.DisabledState.ForeColor = AppleTheme.TextSecondary;
-            b.DisabledState.BorderColor = Color.FromArgb(50, 50, 58);
-            return b;
-        }
+        private static Guna2Button GunaButton(string text, bool primary) => GunaUi.Button(text, primary);
 
         /// <summary>A rounded Guna panel used as a dark "card".</summary>
         private static Guna2Panel GunaCard()
@@ -504,9 +493,12 @@ namespace OrganizationImportTool
                 if (openFileDialog.ShowDialog(this) == DialogResult.OK)
                 {
                     filePathBox.Text = openFileDialog.FileName;
-                    selectedFilePath = openFileDialog.FileName;  // Store the path
-                     logBox.Text = string.Empty;
-                     labelCounter.Text = ("Ready !");
+                    selectedFilePath = openFileDialog.FileName;
+                    logBox.Text = string.Empty;
+                    labelCounter.Text = "Ready !";
+                    // Both client AND file are now selected — enable the run buttons.
+                    uploadBtn.Enabled = true;
+                    dryRunBtn.Enabled = true;
                 }
             }
         }
@@ -623,9 +615,20 @@ namespace OrganizationImportTool
         }
         private void ClientBox_SelectedIndexChanged(object sender, EventArgs e)
         {
-            // Clear selected file path when client changes
+            // Reset file selection — upload requires choosing a file for the new client.
             selectedFilePath = string.Empty;
-            filePathBox.Text = string.Empty; // Also clear the textbox visually
+            filePathBox.Text = string.Empty;
+            logBox.Text = string.Empty;
+            labelCounter.Text = "Ready";
+
+            bool hasClient = clientBox.SelectedIndex >= 0;
+            browseBtn.Enabled  = hasClient;
+            // Upload/DryRun stay disabled until the user also picks a file (see BrowseBtn_Click).
+            uploadBtn.Enabled  = false;
+            dryRunBtn.Enabled  = false;
+            cwSyncBtn.Enabled  = hasClient;
+            cancelBtn.Enabled  = false;
+
             string selectedClient = clientBox.SelectedItem?.ToString();
             if (selectedClient != null && clientEnvironments.ContainsKey(selectedClient))
             {
@@ -721,6 +724,20 @@ namespace OrganizationImportTool
             }
 
             return (environment, url, senderId, password, logPath,EnterpriseID,CompanyCode);
+        }
+
+        private void ScheduleBtn_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                using var f = new Scheduling.JobsForm();
+                f.ShowDialog(this);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Could not open Scheduled Imports: " + ex.Message, "Error",
+                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
 
         private void CwSyncBtn_Click(object sender, EventArgs e)
@@ -872,5 +889,6 @@ namespace OrganizationImportTool
                 _running = false;   // release the reentrancy guard only after the run has truly exited
             }
         }
+
     }
 }

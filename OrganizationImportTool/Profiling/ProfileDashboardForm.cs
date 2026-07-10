@@ -95,10 +95,11 @@ namespace OrganizationImportTool.Profiling
             // ---- buttons: pinned to the TOP of the row so empty space below clears the taskbar ----
             var bottom = new Panel { Dock = DockStyle.Fill, BackColor = AppleTheme.Canvas, Padding = new Padding(18, 14, 18, 0) };
             var stripP = new Panel { Dock = DockStyle.Top, Height = 44, BackColor = Color.Transparent };
-            var cont = GunaUi.Button("Continue import", primary: true); cont.Size = new Size(170, 40); cont.DialogResult = DialogResult.OK; cont.Margin = new Padding(8, 0, 0, 0);
-            var cancel = GunaUi.Button("Cancel import", primary: false); cancel.Size = new Size(150, 40); cancel.DialogResult = DialogResult.Cancel; cancel.Margin = new Padding(8, 0, 8, 0);
+            var cont = GunaUi.Button("Continue import", primary: true); cont.Size = new Size(170, 34); cont.DialogResult = DialogResult.OK; cont.Margin = new Padding(8, 5, 0, 5);
+            var back = GunaUi.Button("← Back", primary: false); back.Size = new Size(110, 34); back.DialogResult = DialogResult.Retry; back.Margin = new Padding(8, 5, 0, 5);
+            var cancel = GunaUi.Button("Cancel import", primary: false); cancel.Size = new Size(150, 34); cancel.DialogResult = DialogResult.Cancel; cancel.Margin = new Padding(8, 5, 8, 5);
             var right = new FlowLayoutPanel { Dock = DockStyle.Right, FlowDirection = FlowDirection.RightToLeft, AutoSize = true, WrapContents = false, BackColor = Color.Transparent };
-            right.Controls.Add(cont); right.Controls.Add(cancel);
+            right.Controls.Add(cont); right.Controls.Add(cancel); right.Controls.Add(back);
             stripP.Controls.Add(right);
             bottom.Controls.Add(stripP);
 

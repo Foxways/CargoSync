@@ -18,7 +18,7 @@ namespace OrganizationImportTool.Ui
             {
                 Dock = DockStyle.Top,
                 Height = form.LogicalToDeviceUnits(34),
-                BackColor = Color.FromArgb(28, 32, 44), // subtly bluer than the canvas
+                BackColor = Color.FromArgb(26, 26, 32),  // slightly lighter than canvas, no blue tint
                 Padding = new Padding(20, 0, 8, 0)
             };
 

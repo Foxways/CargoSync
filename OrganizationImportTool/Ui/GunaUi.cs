@@ -1,4 +1,7 @@
+using System;
 using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Linq;
 using System.Windows.Forms;
 using Guna.UI2.WinForms;
 
@@ -13,9 +16,50 @@ namespace OrganizationImportTool.Ui
         /// <summary>The app's standard loading spinner (hidden until Start()).</summary>
         public static Spinner Spinner(int size = 28) => new Spinner { Size = new Size(size, size), Visible = false };
 
+        /// <summary>
+        /// Guna2Button subclass that paints a subtle glass highlight over the base button —
+        /// a semi-transparent white gradient covering the top 45% gives a premium glossy depth
+        /// without needing image assets. Works on both primary (teal) and secondary (dark) buttons.
+        /// </summary>
+        internal sealed class GlossButton : Guna2Button
+        {
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                base.OnPaint(e);
+                if (Width < 6 || Height < 6) return;
+
+                var g = e.Graphics;
+                g.SmoothingMode   = SmoothingMode.AntiAlias;
+                g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+
+                // Clip the gloss to the button's rounded outline
+                int r = Math.Max(0, BorderRadius);
+                using var clip = AppleTheme.RoundedRect(new Rectangle(1, 1, Width - 2, Height - 2), r);
+
+                // Teal primary buttons are much lighter than dark secondary ones, so a fixed white
+                // alpha looks faint on teal and strong on dark.  Scale the highlight to perceived
+                // brightness so both look equally glossy: bright fill → stronger sheen needed.
+                float brightness = (FillColor.R + FillColor.G + FillColor.B) / (3f * 255f);
+                int topAlpha = brightness > 0.30f ? 90 : 52;  // primary≈0.51 → 90; secondary≈0.16 → 52
+
+                using var gloss = new LinearGradientBrush(
+                    new Point(0, 0), new Point(0, Math.Max(1, Height)),
+                    Color.FromArgb(topAlpha, 255, 255, 255),
+                    Color.FromArgb(0,        255, 255, 255));
+                // Ease-out: fast fade over the top ~45%, then essentially invisible — no hard line.
+                gloss.Blend = new Blend(4)
+                {
+                    Factors   = new[] { 0f, 0.60f, 0.90f, 1f },
+                    Positions = new[] { 0f, 0.38f, 0.55f, 1f }
+                };
+
+                g.FillPath(gloss, clip);
+            }
+        }
+
         public static Guna2Button Button(string text, bool primary)
         {
-            var b = new Guna2Button
+            var b = new GlossButton
             {
                 Text = text,
                 BorderRadius = 10,
@@ -24,7 +68,8 @@ namespace OrganizationImportTool.Ui
                 ForeColor = Color.White,
                 Animated = true,
                 AutoRoundedCorners = false,
-                TextAlign = HorizontalAlignment.Center
+                TextAlign = HorizontalAlignment.Center,
+                Padding   = new Padding(0)   // zero internal padding so TextAlign.Center uses the full client width
             };
             if (primary)
             {
@@ -70,14 +115,30 @@ namespace OrganizationImportTool.Ui
             // bottom sits right at the taskbar top).
             var bar = new Panel { Dock = DockStyle.Bottom, Height = 108, BackColor = AppleTheme.Canvas, Padding = new Padding(18, 14, 18, 0) };
             var strip = new Panel { Dock = DockStyle.Top, Height = 44, BackColor = Color.Transparent };
-            var rf = new FlowLayoutPanel { Dock = DockStyle.Right, FlowDirection = FlowDirection.RightToLeft, AutoSize = true, WrapContents = false, BackColor = Color.Transparent };
-            // Uniform 8px each side → buttons are vertically aligned (top/bottom 0) with an even 16px gap.
-            foreach (var b in right) { b.Margin = new Padding(8, 0, 8, 0); rf.Controls.Add(b); }
+
+            // Explicit-width FlowLayouts (no AutoSize+DockStyle) prevent the known WinForms layout
+            // bug where AutoSize fights DockStyle and causes buttons to overlap or be hidden.
+            // 8px horizontal gap, 5px top/bottom → 5+34+5=44px = strip height → buttons centred.
+            foreach (var b in right) b.Margin = new Padding(8, 5, 8, 5);
+            var rf = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Right, FlowDirection = FlowDirection.RightToLeft,
+                WrapContents = false, BackColor = Color.Transparent,
+                Width = right.Sum(b => b.Width + 16)   // 8 left + 8 right margin per button
+            };
+            foreach (var b in right) rf.Controls.Add(b);
             strip.Controls.Add(rf);
+
             if (left != null && left.Length > 0)
             {
-                var lf = new FlowLayoutPanel { Dock = DockStyle.Left, FlowDirection = FlowDirection.LeftToRight, AutoSize = true, WrapContents = false, BackColor = Color.Transparent };
-                foreach (var b in left) { b.Margin = new Padding(8, 0, 8, 0); lf.Controls.Add(b); }
+                foreach (var b in left) b.Margin = new Padding(8, 5, 8, 5);
+                var lf = new FlowLayoutPanel
+                {
+                    Dock = DockStyle.Left, FlowDirection = FlowDirection.LeftToRight,
+                    WrapContents = false, BackColor = Color.Transparent,
+                    Width = left.Sum(b => b.Width + 16)
+                };
+                foreach (var b in left) lf.Controls.Add(b);
                 strip.Controls.Add(lf);
             }
             bar.Controls.Add(strip);
@@ -102,15 +163,21 @@ namespace OrganizationImportTool.Ui
 
         public static Guna2ComboBox Combo()
         {
-            return new Guna2ComboBox
+            var c = new Guna2ComboBox
             {
                 FillColor = AppleTheme.ControlFill,
                 BorderColor = AppleTheme.Hairline,
                 BorderRadius = 8,
                 ForeColor = AppleTheme.TextPrimary,
                 Font = AppleTheme.Body,
-                ItemHeight = 28
+                ItemHeight = 28,
+                FocusedColor = AppleTheme.Accent   // dropdown arrow colour when focused/open
             };
+            c.HoverState.BorderColor   = AppleTheme.Accent;
+            c.HoverState.FillColor     = AppleTheme.ControlFill;
+            c.FocusedState.BorderColor = AppleTheme.Accent;
+            c.FocusedState.FillColor   = AppleTheme.ControlFill;
+            return c;
         }
 
         public static Guna2TextBox TextBox(string placeholder = "")
@@ -135,23 +202,78 @@ namespace OrganizationImportTool.Ui
             return t;
         }
 
-        public static Guna2NumericUpDown Numeric()
+        /// <summary>
+        /// Dark date picker matching the app's inputs (the native DateTimePicker can't be darkened —
+        /// it stays a white box). Shows date only (no time), keeps the optional check box so an
+        /// unchecked picker means "no bound", and darkens its dropdown calendar instead of the
+        /// default white one.
+        /// </summary>
+        public static Guna2DateTimePicker DatePicker()
         {
-            return new Guna2NumericUpDown
+            var d = new Guna2DateTimePicker
             {
                 FillColor = AppleTheme.ControlFill,
                 BorderColor = AppleTheme.Hairline,
                 BorderRadius = 8,
+                BorderThickness = 1,
                 ForeColor = AppleTheme.TextPrimary,
-                Font = AppleTheme.Body
+                Font = AppleTheme.Body,
+                // Guna's "Short" still appends the time; force an explicit date-only custom format.
+                Format = DateTimePickerFormat.Custom,
+                CustomFormat = "dd/MM/yyyy",
+                ShowCheckBox = true,
+                Checked = false,
+                Animated = false                       // no focus animation → filter bar doesn't reflow
             };
+            d.HoverState.FillColor = AppleTheme.ControlFill;
+            d.HoverState.BorderColor = AppleTheme.Accent;
+            d.HoverState.ForeColor = AppleTheme.TextPrimary;
+            d.CheckedState.FillColor = AppleTheme.ControlFill;
+            d.CheckedState.BorderColor = AppleTheme.Accent;
+            d.CheckedState.ForeColor = AppleTheme.TextPrimary;
+            d.FocusedColor = AppleTheme.Accent;
+            // The dropdown calendar is a native white SysMonthCal32 hosted in Guna's (modal) popup.
+            // A WinForms Timer still ticks inside that modal loop, so use one to recolour the calendar
+            // dark the moment it appears (BeginInvoke wouldn't run until the popup closed).
+            d.DropDown += (s, e) =>
+            {
+                int ticks = 0;
+                var timer = new Timer { Interval = 15 };
+                timer.Tick += (ts, te) =>
+                {
+                    AppleTheme.DarkenOpenMonthCalendars();
+                    if (++ticks >= 6) timer.Stop();   // a few passes catch it once created, then stop
+                };
+                timer.Start();
+                d.CloseUp += (cs, ce) => timer.Stop();
+            };
+            return d;
+        }
+
+        public static Guna2NumericUpDown Numeric()
+        {
+            var n = new Guna2NumericUpDown
+            {
+                FillColor             = AppleTheme.ControlFill,
+                BorderColor           = AppleTheme.Hairline,
+                BorderRadius          = 8,
+                ForeColor             = AppleTheme.TextPrimary,
+                Font                  = AppleTheme.Body,
+                UpDownButtonFillColor = AppleTheme.ControlFill,  // button bg matches field
+                UpDownButtonForeColor = AppleTheme.Accent        // teal arrows
+            };
+            // Guna2NumericUpDown has no HoverState/FocusedState objects — wire Enter/Leave instead.
+            n.Enter += (s, e) => { n.BorderColor = AppleTheme.Accent; n.UpDownButtonFillColor = Color.FromArgb(0, 50, 48); };
+            n.Leave += (s, e) => { n.BorderColor = AppleTheme.Hairline; n.UpDownButtonFillColor = AppleTheme.ControlFill; };
+            return n;
         }
 
         public static Guna2CheckBox Check(string text)
         {
             var c = new Guna2CheckBox { Text = text, ForeColor = AppleTheme.TextPrimary, Font = AppleTheme.Body, AutoSize = true };
-            c.CheckedState.FillColor = AppleTheme.Accent;
+            c.CheckedState.FillColor   = AppleTheme.Accent;
             c.CheckedState.BorderColor = AppleTheme.Accent;
+            c.CheckMarkColor           = AppleTheme.Accent;      // tick mark inside the checked box
             c.UncheckedState.BorderColor = AppleTheme.TextSecondary;
             return c;
         }

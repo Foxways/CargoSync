@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -20,7 +20,7 @@ namespace OrganizationImportTool.Eadaptor
         private readonly IReadOnlyList<string>? _sourceHeaders;
         private List<OrgSendOutcome> _view;
         private Guna.UI2.WinForms.Guna2DataGridView _grid = null!;
-        private TextBox _detail = null!;
+        private RichTextBox _detail = null!;
         private Label _summary = null!;
         private Guna.UI2.WinForms.Guna2CheckBox _attentionOnly = null!;
 
@@ -134,9 +134,9 @@ namespace OrganizationImportTool.Eadaptor
             _grid.CellFormatting += Grid_CellFormatting;
             _grid.SelectionChanged += (s, e) => ShowDetail();
 
-            _detail = new TextBox
+            _detail = new RichTextBox
             {
-                Dock = DockStyle.Fill, Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Both,
+                Dock = DockStyle.Fill, ReadOnly = true, ScrollBars = RichTextBoxScrollBars.Both,
                 WordWrap = false, BackColor = AppleTheme.Surface, ForeColor = AppleTheme.TextPrimary,
                 BorderStyle = BorderStyle.None, Font = new Font("Consolas", 9)
             };
@@ -146,14 +146,14 @@ namespace OrganizationImportTool.Eadaptor
             AppleTheme.DarkScrollbars(_grid);     // dark scrollbars instead of the default white
             AppleTheme.DarkScrollbars(_detail);
 
-            var save = GunaUi.Button("Save Report", primary: false); save.Size = new Size(140, 40); save.Margin = new Padding(10, 0, 0, 0); save.Click += SaveReport_Click;
-            var close = GunaUi.Button("Close", primary: true); close.Size = new Size(120, 40); close.DialogResult = DialogResult.OK;
+            var save = GunaUi.Button("Save Report", primary: false); save.Size = new Size(TextRenderer.MeasureText(save.Text, save.Font).Width + 60, 34); save.Margin = new Padding(10, 0, 0, 0); save.Click += SaveReport_Click;
+            var close = GunaUi.Button("Close", primary: true); close.Size = new Size(TextRenderer.MeasureText(close.Text, close.Font).Width + 60, 34); close.DialogResult = DialogResult.OK;
 
             // Re-export the rows that need fixing in their ORIGINAL columns + a Reason column,
             // so the operator can correct just those rows and re-import the file directly.
             var attention = _outcomes.Where(NeedsAttention).ToList();
             var exportAttention = GunaUi.Button($"Export rows needing attention ({attention.Count})", primary: false);
-            exportAttention.Size = new Size(280, 40);
+            exportAttention.Size = new Size(TextRenderer.MeasureText(exportAttention.Text, exportAttention.Font).Width + 60, 34);
             exportAttention.Click += ExportAttention_Click;
             exportAttention.Visible = _sourceHeaders is { Count: > 0 } && attention.Count > 0;
 

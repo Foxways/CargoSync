@@ -35,7 +35,14 @@ namespace OrganizationImportTool.Ai
                 if (!string.IsNullOrWhiteSpace(env)) return env.Trim();
 
                 string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, KeyFileName);
-                if (File.Exists(path)) return File.ReadAllText(path).Trim();
+                if (File.Exists(path))
+                {
+                    // Key file on disk is readable by any local user. Prefer CARGOSYNC_DEFAULT_OPENROUTER_KEY
+                    // env var in production so the file can be omitted from the install directory entirely.
+                    Logging.AppLog.Warn($"Default AI key loaded from file '{KeyFileName}'. " +
+                        "Set the CARGOSYNC_DEFAULT_OPENROUTER_KEY environment variable instead and remove the file to prevent local users from reading the key.");
+                    return File.ReadAllText(path).Trim();
+                }
             }
             catch (Exception ex) { Logging.AppLog.Warn("Default AI key lookup failed", ex); }
             return string.Empty;

@@ -143,8 +143,15 @@ CREATE TABLE IF NOT EXISTS ImportActivity (
             string hash = r.GetString(1), salt = r.GetString(2);
             bool isAdmin = !r.IsDBNull(3) && r.GetInt32(3) == 1;
             int failed = r.IsDBNull(4) ? 0 : r.GetInt32(4);
-            DateTime? lockedUntil = !r.IsDBNull(5) && DateTime.TryParse(r.GetString(5), null,
-                System.Globalization.DateTimeStyles.RoundtripKind, out var lu) ? lu : null;
+            DateTime? lockedUntil = null;
+            if (!r.IsDBNull(5))
+            {
+                string raw = r.GetString(5);
+                if (DateTime.TryParse(raw, null, System.Globalization.DateTimeStyles.RoundtripKind, out var lu))
+                    lockedUntil = lu;
+                else
+                    Logging.AppLog.Warn($"Account '{username}' has a corrupt LockoutUntilUtc value '{raw}' — treating as still locked for safety.");
+            }
             r.Close();
 
             if (lockedUntil.HasValue && lockedUntil.Value > DateTime.UtcNow)
@@ -176,10 +183,25 @@ CREATE TABLE IF NOT EXISTS ImportActivity (
         /// <summary>Change a password by proving knowledge of the current one. Null = success.</summary>
         public string? ChangePassword(string username, string currentPassword, string newPassword)
         {
-            var auth = AuthenticateDetailed(username, currentPassword);
-            if (auth.Locked) return "This account is temporarily locked. Try again later.";
-            if (auth.User == null) return "Current password is incorrect.";
+            // Use VerifyPasswordOnly (not AuthenticateDetailed) so that mistyping the current password
+            // does NOT increment FailedLogins and cannot trigger a lockout on the user's own account.
+            if (!VerifyPasswordOnly(username, currentPassword)) return "Current password is incorrect.";
             return ResetPasswordUnchecked(username, newPassword);
+        }
+
+        /// <summary>
+        /// Verifies credentials against the stored hash WITHOUT mutating FailedLogins or LockoutUntilUtc.
+        /// Use only for owned-account operations (e.g. ChangePassword) where lockout mutation is wrong.
+        /// </summary>
+        private bool VerifyPasswordOnly(string username, string password)
+        {
+            username = (username ?? string.Empty).Trim();
+            using var conn = Open();
+            using var cmd = new SQLiteCommand("SELECT PasswordHash, PasswordSalt FROM Users WHERE Username=@u", conn);
+            cmd.Parameters.AddWithValue("@u", username);
+            using var r = cmd.ExecuteReader();
+            if (!r.Read()) return false;
+            return PasswordHasher.Verify(password ?? string.Empty, r.GetString(0), r.GetString(1));
         }
 
         /// <summary>Reset another user's password with an administrator's approval. Null = success.</summary>
@@ -213,7 +235,8 @@ CREATE TABLE IF NOT EXISTS ImportActivity (
             if (!UserExists(username)) return "No such user.";
             var (hash, salt) = PasswordHasher.Hash(newPassword!);
             using var conn = Open();
-            using var cmd = new SQLiteCommand("UPDATE Users SET PasswordHash=@h, PasswordSalt=@s WHERE Username=@u", conn);
+            using var cmd = new SQLiteCommand(
+                "UPDATE Users SET PasswordHash=@h, PasswordSalt=@s, FailedLogins=0, LockoutUntilUtc=NULL WHERE Username=@u", conn);
             cmd.Parameters.AddWithValue("@h", hash);
             cmd.Parameters.AddWithValue("@s", salt);
             cmd.Parameters.AddWithValue("@u", username.Trim());

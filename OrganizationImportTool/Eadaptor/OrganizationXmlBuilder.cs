@@ -52,23 +52,31 @@ namespace OrganizationImportTool.Eadaptor
                     var item = addresses.TryGetValue(ai, out var ex) ? ex : (addresses[ai] = new AddressItem(ai));
                     if (TryCollection(arest, "orgAddressCapabilityCollection", out _, out string crest))
                     {
+                        if (string.IsNullOrEmpty(crest)) continue; // path ends at collection boundary — no field to emit
                         item.Capability ??= new XElement(Ns + "OrgAddressCapability", new XAttribute("Action", "MERGE"));
                         EmitInto(item.Capability, crest, raw, field);
                     }
-                    else EmitInto(item.Address, arest, raw, field);
+                    else
+                    {
+                        if (string.IsNullOrEmpty(arest)) continue;
+                        EmitInto(item.Address, arest, raw, field);
+                    }
                 }
                 else if (TryCollection(path, "orgContactCollection", out int ci, out string crest2))
                 {
+                    if (string.IsNullOrEmpty(crest2)) continue;
                     var c = contacts.TryGetValue(ci, out var ex) ? ex : (contacts[ci] = NewItem("OrgContact"));
                     EmitInto(c, crest2, raw, field);
                 }
                 else if (TryCollection(path, "orgRegistrationNumberCollection", out int ri, out string rrest))
                 {
+                    if (string.IsNullOrEmpty(rrest)) continue;
                     var rEl = registrations.TryGetValue(ri, out var ex) ? ex : (registrations[ri] = new XElement(Ns + "RegistrationNumber"));
                     EmitInto(rEl, rrest, raw, field);
                 }
                 else if (TryCollection(path, "orgCompanyDataCollection", out int coi, out string corest))
                 {
+                    if (string.IsNullOrEmpty(corest)) continue;
                     var co = companies.TryGetValue(coi, out var ex) ? ex : (companies[coi] = NewItem("OrgCompanyData"));
                     EmitInto(co, corest, raw, field);
                 }

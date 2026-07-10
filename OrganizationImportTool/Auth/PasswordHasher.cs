@@ -29,7 +29,11 @@ namespace OrganizationImportTool.Auth
                 byte[] actual = Rfc2898DeriveBytes.Pbkdf2(password, salt, Iterations, HashAlgorithmName.SHA256, KeySize);
                 return CryptographicOperations.FixedTimeEquals(actual, expected);
             }
-            catch { return false; }
+            catch (Exception ex)
+            {
+                Logging.AppLog.Warn("Password verification error — possible DB corruption (corrupt hash or salt)", ex);
+                return false;
+            }
         }
     }
 }

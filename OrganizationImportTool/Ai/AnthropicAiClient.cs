@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net.Http;
 using System.Text;
@@ -36,7 +37,7 @@ namespace OrganizationImportTool.Ai
                     system = request.System,
                     messages = new object[]
                     {
-                        new { role = "user", content = request.Prompt }
+                        new { role = "user", content = BuildContent(request) }
                     }
                 };
 
@@ -93,6 +94,34 @@ namespace OrganizationImportTool.Ai
             {
                 return Fail(ex.Message, sw.ElapsedMilliseconds);
             }
+        }
+
+        /// <summary>
+        /// Plain string for text-only requests (unchanged behaviour); content-block array when
+        /// attachments are present. PDFs ride as native "document" blocks - the model sees both
+        /// the text layer and the rendered layout, so no local rasterisation is needed.
+        /// </summary>
+        private static object BuildContent(AiRequest request)
+        {
+            if (request.Attachments.Count == 0) return request.Prompt;
+
+            var blocks = new List<object>();
+            foreach (var att in request.Attachments)
+            {
+                blocks.Add(att.Kind == AiAttachmentKind.Pdf
+                    ? new
+                    {
+                        type = "document",
+                        source = new { type = "base64", media_type = "application/pdf", data = att.Base64Data }
+                    }
+                    : (object)new
+                    {
+                        type = "image",
+                        source = new { type = "base64", media_type = att.MediaType, data = att.Base64Data }
+                    });
+            }
+            blocks.Add(new { type = "text", text = request.Prompt });
+            return blocks;
         }
 
         private AiResponse Fail(string error, long ms)

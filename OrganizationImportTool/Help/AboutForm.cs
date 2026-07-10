@@ -42,16 +42,25 @@ namespace OrganizationImportTool.Help
 
             var guideBtn = GunaUi.Button("Open the user guide", primary: true);
             guideBtn.Size = new Size(190, 40);
-            guideBtn.Margin = new Padding(0, 0, 0, 8);
+            guideBtn.Margin = new Padding(0, 0, 10, 0);
             guideBtn.Click += (s, e) => { HelpForm.Open(Owner ?? (IWin32Window)this); Close(); };
 
             var closeBtn = GunaUi.Button("Close", primary: false);
-            closeBtn.Size = new Size(110, 36);
+            closeBtn.Size = new Size(110, 40);
+            closeBtn.Margin = new Padding(0);
             closeBtn.DialogResult = DialogResult.Cancel;
             CancelButton = closeBtn;
 
-            stack.Controls.Add(guideBtn);
-            stack.Controls.Add(closeBtn);
+            // Both buttons on one row.
+            var buttonRow = new FlowLayoutPanel
+            {
+                FlowDirection = FlowDirection.LeftToRight, AutoSize = true, WrapContents = false,
+                BackColor = Color.Transparent, Margin = new Padding(0, 4, 0, 0)
+            };
+            buttonRow.Controls.Add(guideBtn);
+            buttonRow.Controls.Add(closeBtn);
+
+            stack.Controls.Add(buttonRow);
             card.Controls.Add(stack);
             Controls.Add(card);
             FormAnimator.FadeIn(this);

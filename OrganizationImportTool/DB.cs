@@ -9,7 +9,7 @@ namespace OrganizationImportTool
 {
     public static class DB
     {
-        private static readonly string ConnectionString = "Data Source=data.db;Version=3;";
+        private static readonly string ConnectionString = $"Data Source={AppPaths.DbPath};Version=3;";
 
         public static SQLiteConnection GetConnection()
         {

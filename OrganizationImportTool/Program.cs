@@ -117,6 +117,13 @@ namespace OrganizationImportTool
                 Environment.Exit(SelfTest.EnrichTest().GetAwaiter().GetResult());
                 return;
             }
+            // Unattended scheduled import: run one job over its watched folder. Invoked by the
+            // Windows scheduled task created from the job editor.
+            if (args.Length > 0 && args[0].Equals("--run-job", StringComparison.OrdinalIgnoreCase))
+            {
+                Environment.Exit(Scheduling.ScheduledImportService.RunFromCliAsync(args).GetAwaiter().GetResult());
+                return;
+            }
             if (args.Length > 0 && args[0].StartsWith("--ui-", StringComparison.OrdinalIgnoreCase) && args[0] != "--ui-ai" && args[0] != "--ui-create")
             {
                 Application.SetHighDpiMode(HighDpiMode.SystemAware);
@@ -130,6 +137,9 @@ namespace OrganizationImportTool
                         case "--ui-client": Application.Run(new EAdaptorSetupForm()); return;
                         case "--ui-wizard": Application.Run(new Onboarding.WelcomeWizard(() => 0, Ai.AiSettings.Load()) { ShowInTaskbar = true }); return;
                         case "--ui-help": Application.Run(Help.HelpForm.CreateStandalone()); return;
+                        case "--ui-jobs": Application.Run(new Scheduling.JobsForm()); return;
+                        case "--ui-smtp": Application.Run(new Scheduling.SmtpSettingsForm(Scheduling.SmtpSettings.Load())); return;
+                        case "--ui-templates": Application.Run(new Mapping.TemplateManagerForm()); return;
                         case "--ui-about": Application.Run(new Help.AboutForm { ShowInTaskbar = true, StartPosition = FormStartPosition.CenterScreen }); return;
                         case "--ui-forgot": Application.Run(new Auth.ForgotPasswordForm(new Auth.UserStore())); return;
                         case "--ui-main": Application.Run(new Form1(new Auth.User { Id = 1, Username = "demo" })); return;

@@ -32,7 +32,7 @@ namespace OrganizationImportTool.Enrichment
             {
                 List<EnrichmentSuggestion> got;
                 try { got = await p.EnrichAsync(rows, contract, ct); }
-                catch { continue; }
+                catch (Exception ex) { Logging.AppLog.Warn($"Enrichment provider '{p.Name}' threw unexpectedly — skipping", ex); continue; }
                 foreach (var s in got)
                     if (!string.IsNullOrWhiteSpace(s.Value) && seen.Add((s.RowNumber, s.Path)))
                         merged.Add(s);
